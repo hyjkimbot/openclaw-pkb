@@ -4,14 +4,15 @@ This directory contains the essential scripts and structure for a Personal Knowl
 
 ## Installation
 
-1.  **Create the Repository**:
+1.  **Clone the Repository**:
+    We recommend cloning this into your workspace root (e.g., `~/workspace/pkb`).
     ```bash
-    mkdir pkb
+    git clone <your-repo-url> pkb
     cd pkb
-    git init
     ```
+    *Note:* The skill expects the vault to be at `./pkb` relative to the agent's workspace. If you place it elsewhere, update the paths in `SKILL.md`.
 
-2.  **Add Structure**:
+2.  **Initialize Structure**:
     Create the folders: `docs/sources`, `mocs`, `scripts`.
     
     ```bash
