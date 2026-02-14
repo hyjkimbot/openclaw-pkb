@@ -82,3 +82,7 @@ pkb/
 ├── .gitignore      # Standard gitignore
 └── README.md
 ```
+
+## Presentation
+
+Check out the [OpenClaw Event Presentation](presentation/slides.md) for a conceptual overview of the AI-Native PKB.
