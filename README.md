@@ -35,6 +35,38 @@ This directory contains the essential scripts and structure for a Personal Knowl
 - **Refactor**: Use `scripts/refactor.py old.md new.md` to move files and update wikilinks automatically.
 - **Validate**: The skill runs `scripts/pkb-validate.py` before committing to ensure data integrity.
 
+## Human Setup (The Viewer)
+
+To view and edit these notes pleasantly:
+
+1.  **Install Obsidian**: [https://obsidian.md](https://obsidian.md)
+2.  **Open the Vault**: Select "Open folder as vault" and choose your `pkb` directory.
+3.  **Install the Git Plugin**:
+    *   Settings → Community Plugins → Turn on Community Plugins.
+    *   Browse → Search for **"Obsidian Git"** (by Vinzent03).
+    *   Install & Enable.
+    *   *Why?* This allows the desktop app to sync changes made by your AI agent automatically (and vice versa).
+
+## Agent Interaction
+
+This skill enables your AI agent to manage the vault. Here are the standard workflows you can use:
+
+### 1. Ingestion
+*   **User:** "Save this article to my PKB."
+*   **Agent:** Fetches content, creates `docs/sources/article-name.md`, adds frontmatter (`type/source`), and links it to relevant MOCs.
+
+### 2. Logging
+*   **User:** "Log a workout: Bench 135x10, felt easy."
+*   **Agent:** Appends to `journal/YYYY-MM-DD.md` or specialized logs like `docs/exercise/log.md`.
+
+### 3. Refactoring
+*   **User:** "Rename the 'Project X' note to 'Project Y'."
+*   **Agent:** Runs `scripts/refactor.py` to move the file and **update all wikilinks** automatically.
+
+### 4. Querying
+*   **User:** "What have I saved about 'Bioinformatics'?"
+*   **Agent:** Greps for `#topic/bio` or searches text content to summarize findings.
+
 ## Directory Layout (Recommended)
 
 ```
