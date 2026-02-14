@@ -75,7 +75,7 @@
 
 *   **The Future**: Agents will come and go. Models will change. **Your data must survive.**
 *   **Get Started**: 
-    *   Check out the **PKB Starter Kit**.
+    *   Check out the **PKB Starter Kit**: [github.com/hyjkimbot/openclaw-pkb](https://github.com/hyjkimbot/openclaw-pkb)
     *   Clone it, point OpenClaw at it, and start building your shared brain today.
 
 ![PKB Starter Kit QR](assets/qr.png)
