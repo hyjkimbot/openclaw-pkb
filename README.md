@@ -1,5 +1,7 @@
 # PKB Starter Kit
 
+<img src="assets/qr.png" align="right" width="150" alt="QR Code" />
+
 This directory contains the essential scripts and structure for a Personal Knowledge Base (PKB) managed via Git and OpenClaw.
 
 ## Installation
