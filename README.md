@@ -48,6 +48,15 @@ To view and edit these notes pleasantly:
     *   Settings → Community Plugins → Turn on Community Plugins.
     *   Browse → Search for **"Fit"** (by Joshua K. To).
     *   Install & Enable.
+
+4.  **Configure Fit**:
+    *   **Generate Token**: Go to GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic).
+    *   Generate a new token with **`repo`** scope. Copy it.
+    *   **Obsidian Settings**: Go to Fit settings.
+    *   Paste your **Personal Access Token**.
+    *   Enter your **GitHub Username**.
+    *   Enter your **Repository Name** (e.g., `openclaw-pkb`).
+    *   Enter your **Branch Name** (usually `main`).
     *   *Why?* Fit handles Git synchronization (pull/push) more seamlessly for this workflow than Obsidian Git.
 
 ## Agent Interaction
