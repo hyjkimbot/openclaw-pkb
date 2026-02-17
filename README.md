@@ -44,11 +44,11 @@ To view and edit these notes pleasantly:
 
 1.  **Install Obsidian**: [https://obsidian.md](https://obsidian.md)
 2.  **Open the Vault**: Select "Open folder as vault" and choose your `pkb` directory.
-3.  **Install the Git Plugin**:
+3.  **Install the Fit Plugin**:
     *   Settings → Community Plugins → Turn on Community Plugins.
-    *   Browse → Search for **"Obsidian Git"** (by Vinzent03).
+    *   Browse → Search for **"Fit"** (by Joshua K. To).
     *   Install & Enable.
-    *   *Why?* This allows the desktop app to sync changes made by your AI agent automatically (and vice versa).
+    *   *Why?* Fit handles Git synchronization (pull/push) more seamlessly for this workflow than Obsidian Git.
 
 ## Agent Interaction
 
