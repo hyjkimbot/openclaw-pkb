@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your AI Second Brain — PKB + OpenClaw</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --r-background-color: #f4f1ea;
+    --r-main-font: 'JetBrains Mono', monospace;
+    --r-heading-font: 'Space Grotesk', sans-serif;
+    --r-code-font: 'JetBrains Mono', monospace;
+    --r-main-font-size: 26px;
+    --r-heading-color: #1a1a18;
+    --r-main-color: #4a4a44;
+    --r-link-color: #d42f00;
+    --r-link-color-hover: #ff3b00;
+    --red: #d42f00;
+    --black: #1a1a18;
+    --dim: #8a8880;
+    --border: #c8c4ba;
+    --surface: #ebe8e0;
+    --paper: #f4f1ea;
+  }
+
+  .reveal { font-weight: 400; letter-spacing: -0.01em; }
+
+  .reveal h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 3em; font-weight: 700; line-height: 1.0;
+    text-transform: none; letter-spacing: -0.04em;
+    color: var(--black);
+  }
+  .reveal h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.9em; font-weight: 700; line-height: 1.1;
+    text-transform: none; letter-spacing: -0.03em;
+    color: var(--black); margin-bottom: 0.5em;
+  }
+  .reveal h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75em; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--red);
+  }
+
+  .reveal p, .reveal li { line-height: 1.7; font-size: 0.88em; }
+  .reveal .slides section { padding: 48px 88px; text-align: left; box-sizing: border-box; overflow: hidden; }
+
+  /* Accent text */
+  .red { color: var(--red); }
+  .dim { color: var(--dim); }
+  .black { color: var(--black); }
+
+  /* Thick rule */
+  .rule {
+    border: none; border-top: 3px solid var(--red);
+    margin: 0 0 24px 0; width: 80px;
+  }
+
+  /* Section label */
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68em; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.15em;
+    color: var(--dim); margin-bottom: 12px;
+    display: block;
+  }
+  .section-label.red-label { color: var(--red); }
+
+  /* Grid cards — brutalist */
+  .grid { display: flex; gap: 2px; margin-top: 20px; }
+  .grid-item {
+    flex: 1; background: var(--surface);
+    border: 2px solid var(--border);
+    padding: 24px; text-align: left;
+  }
+  .grid-item h3 { margin: 0 0 10px 0; }
+  .grid-item p { font-size: 0.72em; color: #6a6a64; margin: 0; line-height: 1.6; }
+
+  /* Numbered list style */
+  .principle-list {
+    list-style: none !important; padding: 0 !important; margin: 0;
+    counter-reset: principle;
+  }
+  .principle-list li {
+    counter-increment: principle;
+    padding: 14px 0;
+    border-bottom: 2px solid var(--border);
+    font-size: 0.82em;
+    color: var(--black);
+  }
+  .principle-list li:last-child { border-bottom: none; }
+  .principle-list li::before {
+    content: counter(principle, decimal-leading-zero);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 1.1em;
+    color: var(--red); margin-right: 16px;
+  }
+  .principle-list li span.sub { color: #8a8880; }
+
+  /* Tree / code */
+  .mono-block {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68em; line-height: 1.8;
+    background: var(--surface); border: 2px solid var(--border);
+    padding: 24px; color: var(--dim);
+    white-space: pre;
+  }
+  .mono-block .hl { color: var(--black); }
+  .mono-block .red { color: var(--red); }
+  .mono-block .comment { color: #b0ada6; }
+
+  /* Architecture row */
+  .arch-row {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; margin: 28px 0; font-family: 'JetBrains Mono', monospace;
+  }
+  .arch-node {
+    border: 2px solid var(--border); padding: 20px 28px;
+    text-align: center; min-width: 160px; background: var(--surface);
+  }
+  .arch-node.active { border-color: var(--red); border-width: 3px; }
+  .arch-node strong {
+    display: block; font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1em; color: var(--black); letter-spacing: -0.02em;
+  }
+  .arch-node span { font-size: 0.75em; color: var(--dim); }
+  .arch-conn {
+    width: 60px; border-top: 2px solid var(--border); margin: 0 4px;
+  }
+
+  /* Obsidian mockup — stays dark (it's a dark app) */
+  .obs-mock {
+    background: #141412; border: 2px solid var(--border);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68em;
+    overflow: hidden;
+  }
+  .obs-bar {
+    background: #0d0d0b; padding: 6px 14px; display: flex;
+    align-items: center; gap: 7px; border-bottom: 1px solid #2a2a24;
+  }
+  .obs-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #333; }
+  .obs-dot.r { background: #ff3b00; border-color: #ff3b00; }
+  .obs-dot.y { background: #e8c800; border-color: #e8c800; }
+  .obs-dot.g { background: #00c840; border-color: #00c840; }
+  .obs-bar span { color: #3a3a34; margin-left: 10px; font-size: 0.9em; }
+  .obs-body { display: flex; height: 310px; }
+  .obs-side {
+    width: 195px; background: #0d0d0b; border-right: 1px solid #2a2a24;
+    padding: 10px 0; overflow: hidden;
+  }
+  .obs-side div { padding: 4px 14px; color: #5a5a54; white-space: nowrap; }
+  .obs-side div.folder { color: #6a6a64; font-weight: 600; font-size: 0.9em; padding-top: 10px; }
+  .obs-side div.active { color: #ff3b00; background: rgba(255,59,0,0.06); }
+  .obs-editor {
+    flex: 1; padding: 18px 22px; color: #999990; line-height: 1.9; overflow: hidden;
+  }
+  .obs-editor .h1 { color: #e8e8e0; font-size: 1.4em; font-weight: 700; margin-bottom: 6px; }
+  .obs-editor .h2 { color: #ff3b00; font-size: 1em; font-weight: 600; margin-top: 12px; }
+  .obs-editor .link { color: #6a9955; }
+  .obs-editor .meta { color: #4a4a44; font-size: 0.85em; }
+  .obs-editor .tag { color: #6a6a64; background: #1a1a18; padding: 1px 5px; }
+  .obs-graph {
+    width: 240px; background: #0a0a08; border-left: 1px solid #2a2a24;
+    position: relative;
+  }
+  .obs-graph-label {
+    color: #3a3a34; font-size: 0.8em; padding: 6px 10px;
+    border-bottom: 1px solid #2a2a24; text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* Input/output boxes */
+  .io-row { display: flex; gap: 2px; margin-top: 16px; }
+  .io-box {
+    flex: 1; background: var(--surface); border: 2px solid var(--border);
+    padding: 22px 24px;
+  }
+  .io-box.input { border-left: 4px solid var(--red); }
+  .io-box .io-label {
+    font-size: 0.68em; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--dim); margin-bottom: 10px;
+  }
+  .io-box .io-label.red-label { color: var(--red); }
+  .io-box .io-text {
+    font-size: 0.72em; color: var(--black); line-height: 1.7;
+  }
+  .io-box .io-detail {
+    font-size: 0.68em; color: #6a6a64; line-height: 1.8; margin-top: 4px;
+  }
+
+  /* Text message — brutalist */
+  .sms {
+    background: #e0eed8; color: #2a4a20; padding: 14px 18px;
+    font-size: 0.68em; line-height: 1.6; margin: 6px 0;
+    border-left: 3px solid #6a9955; max-width: 90%;
+  }
+  .sms-meta { font-size: 0.65em; color: var(--dim); margin-top: 6px; }
+
+  /* Slide number */
+  .reveal .slide-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--border); background: transparent;
+    right: 56px; bottom: 24px;
+  }
+  .reveal .progress { height: 2px; color: var(--red); }
+  .reveal .controls { color: var(--dim); }
+
+  .reveal .slides > section { background: none; }
+
+  /* Utility */
+  .mt { margin-top: 20px; }
+  .small { font-size: 0.78em; }
+  .meta { font-size: 0.72em; color: var(--dim); }
+
+  /* Source chips for data flow */
+  .src-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 2px solid var(--border);
+    padding: 8px 12px;
+  }
+  .src-icon { width: 20px; height: 20px; flex-shrink: 0; }
+  .src-chip span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62em; color: var(--black); font-weight: 500;
+  }
+
+  /* Callout */
+  .callout {
+    border-left: 4px solid var(--red);
+    padding: 18px 24px; margin: 20px 0;
+    background: var(--surface);
+  }
+  .callout p {
+    font-size: 0.82em; color: var(--black); line-height: 1.6; margin: 0;
+  }
+
+  /* Stage indicator */
+  .stage {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68em; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: #fff; background: var(--red);
+    padding: 4px 12px; margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================================ -->
+<!-- 1. TITLE -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label">John Kim / 2026</span>
+  <hr class="rule">
+  <h1>Your AI<br><span class="red">Second Brain</span></h1>
+  <p style="margin-top: 32px; font-size: 0.72em; color: var(--dim);">
+    A personal knowledge base controlled by <span class="black">OpenClaw</span>.
+  </p>
+</section>
+
+<!-- ============================================ -->
+<!-- 2. THE PROBLEM -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label red-label">Problem</span>
+  <hr class="rule">
+  <h2>Too much to remember</h2>
+  <div class="grid">
+    <div class="grid-item">
+      <h3>Decisions</h3>
+      <p>Why did you change that dosage? When did you start that protocol?</p>
+    </div>
+    <div class="grid-item">
+      <h3>Data</h3>
+      <p>Lab results, workout loads, articles, purchase histories.</p>
+    </div>
+    <div class="grid-item">
+      <h3>Connections</h3>
+      <p>The link between your blood test and your supplement stack.</p>
+    </div>
+  </div>
+  <p style="margin-top: 28px; font-size: 0.78em;">
+    An AI agent can organize all of it &mdash; if it has the right <span class="black">workspace</span>.
+  </p>
+</section>
+
+<!-- ============================================ -->
+<!-- 3. ZETTELKASTEN -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label">The Method</span>
+  <hr class="rule">
+  <h2>The Zettelkasten</h2>
+  <div style="display: flex; gap: 2px; margin-top: 16px;">
+    <div style="flex: 1;">
+      <ul class="principle-list">
+        <li><span class="black">Atomic notes</span> <span class="sub">&mdash; one idea per note</span></li>
+        <li><span class="black">Links over folders</span> <span class="sub">&mdash; connections, not categories</span></li>
+        <li><span class="black">Write to think</span> <span class="sub">&mdash; noting <em>is</em> thinking</span></li>
+        <li><span class="black">Emergence</span> <span class="sub">&mdash; ideas surface from the network</span></li>
+      </ul>
+    </div>
+    <div style="flex: 1; padding-left: 32px;">
+      <div class="callout">
+        <p>
+          German-engineered. Battle-tested over decades.<br><br>
+          But the classic slip-box is <span class="black">read-only to everyone but you</span>.<br><br>
+          Ours can <span class="red">read itself, write to itself, and take action</span>.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ -->
+<!-- 4. ARCHITECTURE -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label">Architecture</span>
+  <hr class="rule">
+  <h2>Git + Markdown</h2>
+  <div style="display: flex; gap: 2px; margin-top: 16px;">
+    <div class="mono-block" style="flex: 1.3;">
+<span class="hl">pkb/</span>
+├── <span class="red">docs/</span>
+│   ├── <span class="red">sources/</span>    <span class="comment"># articles, papers, recipes</span>
+│   ├── <span class="red">exercise/</span>   <span class="comment"># workout logs &amp; loads</span>
+│   └── <span class="red">health/</span>     <span class="comment"># lab results, supplements</span>
+├── <span class="red">mocs/</span>           <span class="comment"># Maps of Content</span>
+├── <span class="red">blocks/</span>         <span class="comment"># quick notes</span>
+└── <span class="red">.agent/</span>         <span class="comment"># agent rules</span></div>
+    <div style="flex: 0.8; padding-left: 24px;">
+      <p style="font-size: 0.72em; line-height: 2; color: #6a6a64;">
+        <span class="black">Versioned</span> &mdash; every change reversible<br>
+        <span class="black">Offline</span> &mdash; no API for your own thoughts<br>
+        <span class="black">Portable</span> &mdash; survives any tool or model<br>
+        <span class="black">Auditable</span> &mdash; full git history
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ -->
+<!-- 5. OBSIDIAN -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label">Human Interface</span>
+  <hr class="rule">
+  <h2>Obsidian</h2>
+  <div class="obs-mock" style="margin-top: 12px;">
+    <div class="obs-bar">
+      <div class="obs-dot r"></div>
+      <div class="obs-dot y"></div>
+      <div class="obs-dot g"></div>
+      <span>PKB &mdash; Obsidian</span>
+    </div>
+    <div class="obs-body">
+      <div class="obs-side">
+        <div class="folder">&#x25BE; mocs/</div>
+        <div>&nbsp;&nbsp;agent-workflows</div>
+        <div>&nbsp;&nbsp;bread</div>
+        <div>&nbsp;&nbsp;coffee</div>
+        <div class="active">&nbsp;&nbsp;health</div>
+        <div>&nbsp;&nbsp;knives</div>
+        <div>&nbsp;&nbsp;memory-systems</div>
+        <div class="folder">&#x25BE; docs/sources/</div>
+        <div>&nbsp;&nbsp;kaiser-blood-test</div>
+        <div>&nbsp;&nbsp;espresso-extraction</div>
+        <div class="folder">&#x25BE; docs/exercise/</div>
+        <div>&nbsp;&nbsp;current-loads</div>
+        <div>&nbsp;&nbsp;2026-02-Exercise</div>
+      </div>
+      <div class="obs-editor">
+        <div class="h1">Health</div>
+        <div class="meta">Map of Content &middot; 2026-02-21</div>
+        <div class="h2">&#x25B8; Exercise &amp; Fitness</div>
+        <div>&bull; <span class="link">[[current-loads]]</span> &mdash; live tracking</div>
+        <div>&bull; <span class="link">[[2026-02-Exercise]]</span> &mdash; monthly log</div>
+        <div>&bull; <span class="link">[[Barbell-Basics-Routine]]</span></div>
+        <div class="h2">&#x25B8; Lab Results</div>
+        <div>&bull; <span class="link">[[kaiser-blood-test-2025]]</span> &mdash; full panel</div>
+        <div>&bull; <span class="link">[[kaiser-alt-test-2025]]</span> &mdash; liver</div>
+        <div class="h2">&#x25B8; Supplements</div>
+        <div>&bull; <span class="link">[[supplement-purchase-list]]</span> <span class="tag">stable</span></div>
+      </div>
+      <div class="obs-graph">
+        <div class="obs-graph-label">Graph</div>
+        <svg viewBox="0 0 240 280" style="width:100%;height:calc(100% - 26px);">
+          <line x1="120" y1="65" x2="50" y2="140" stroke="#2a2a24" stroke-width="1"/>
+          <line x1="120" y1="65" x2="195" y2="125" stroke="#2a2a24" stroke-width="1"/>
+          <line x1="120" y1="65" x2="120" y2="160" stroke="#2a2a24" stroke-width="1"/>
+          <line x1="120" y1="65" x2="70" y2="50" stroke="#1a1a18" stroke-width="1"/>
+          <line x1="120" y1="65" x2="175" y2="42" stroke="#1a1a18" stroke-width="1"/>
+          <line x1="50" y1="140" x2="30" y2="210" stroke="#1a1a18" stroke-width="1"/>
+          <line x1="50" y1="140" x2="90" y2="220" stroke="#1a1a18" stroke-width="1"/>
+          <line x1="195" y1="125" x2="210" y2="195" stroke="#1a1a18" stroke-width="1"/>
+          <line x1="195" y1="125" x2="155" y2="200" stroke="#1a1a18" stroke-width="1"/>
+          <line x1="120" y1="160" x2="90" y2="220" stroke="#1a1a18" stroke-width="1"/>
+          <line x1="120" y1="160" x2="155" y2="200" stroke="#1a1a18" stroke-width="1"/>
+          <circle cx="120" cy="65" r="6" fill="#ff3b00" opacity="0.9"/>
+          <text x="120" y="85" fill="#ff3b00" font-size="8" text-anchor="middle" font-family="JetBrains Mono,monospace" opacity="0.7">health</text>
+          <circle cx="50" cy="140" r="4" fill="#585850"/>
+          <text x="50" y="155" fill="#3a3a34" font-size="7" text-anchor="middle" font-family="JetBrains Mono,monospace">exercise</text>
+          <circle cx="195" cy="125" r="4" fill="#585850"/>
+          <text x="195" y="140" fill="#3a3a34" font-size="7" text-anchor="middle" font-family="JetBrains Mono,monospace">supplements</text>
+          <circle cx="120" cy="160" r="4" fill="#585850"/>
+          <text x="120" y="175" fill="#3a3a34" font-size="7" text-anchor="middle" font-family="JetBrains Mono,monospace">lab results</text>
+          <circle cx="70" cy="50" r="2.5" fill="#3a3a34"/>
+          <circle cx="175" cy="42" r="2.5" fill="#3a3a34"/>
+          <circle cx="30" cy="210" r="2" fill="#2a2a24"/>
+          <circle cx="90" cy="220" r="2" fill="#2a2a24"/>
+          <circle cx="210" cy="195" r="2" fill="#2a2a24"/>
+          <circle cx="155" cy="200" r="2" fill="#2a2a24"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <p class="meta" style="margin-top: 10px;">You think. The agent links, tags, and organizes underneath.</p>
+</section>
+
+<!-- ============================================ -->
+<!-- 6. DATA FLOW -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label">Data Flow</span>
+  <hr class="rule">
+  <h2>Everything flows in</h2>
+  <div style="display: flex; align-items: center; gap: 0; margin-top: 12px; font-family: 'JetBrains Mono', monospace;">
+
+    <!-- INPUT SOURCES -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3px; flex-shrink: 0; width: 340px;">
+      <!-- iMessage -->
+      <div class="src-chip">
+        <svg viewBox="0 0 24 24" class="src-icon"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" fill="#34C759"/></svg>
+        <span>iMessage</span>
+      </div>
+      <!-- Email -->
+      <div class="src-chip">
+        <svg viewBox="0 0 24 24" class="src-icon"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" fill="#EA4335"/></svg>
+        <span>Email</span>
+      </div>
+      <!-- Google Drive -->
+      <div class="src-chip">
+        <svg viewBox="0 0 24 24" class="src-icon"><path d="M8.4 2L2 13l3.6 6h4.8L4 8.5 8.4 2zm2.4 0L4.5 13h7.2l6.3-11H10.8zm6.6 11.5L14 19.5h7.2l3.6-6h-7.4z" fill="#4285F4"/></svg>
+        <span>Drive</span>
+      </div>
+      <!-- URLs -->
+      <div class="src-chip">
+        <svg viewBox="0 0 24 24" class="src-icon"><path d="M3.9 12c0-1.7 1.4-3.1 3.1-3.1h4V7H7C4.2 7 2 9.2 2 12s2.2 5 5 5h4v-1.9H7c-1.7 0-3.1-1.4-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.7 0 3.1 1.4 3.1 3.1s-1.4 3.1-3.1 3.1h-4V17h4c2.8 0 5-2.2 5-5s-2.2-5-5-5z" fill="#8a8880"/></svg>
+        <span>URLs</span>
+      </div>
+      <!-- Images / PDFs -->
+      <div class="src-chip">
+        <svg viewBox="0 0 24 24" class="src-icon"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" fill="#FF9500"/></svg>
+        <span>Images</span>
+      </div>
+      <!-- Web Scrape -->
+      <div class="src-chip">
+        <svg viewBox="0 0 24 24" class="src-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#8a8880"/></svg>
+        <span>Web Scrape</span>
+      </div>
+      <!-- Other integrations -->
+      <div class="src-chip" style="grid-column: 1 / -1; border-style: dashed;">
+        <svg viewBox="0 0 24 24" class="src-icon"><path d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="var(--red)"/></svg>
+        <span>Other OpenClaw integrations</span>
+      </div>
+    </div>
+
+    <!-- ARROW: inputs → OpenClaw -->
+    <div style="flex-shrink: 0; padding: 0 8px; color: var(--border);">
+      <svg viewBox="0 0 40 20" style="width: 40px; height: 20px;"><path d="M0 10 H32 L26 4 M32 10 L26 16" stroke="#c8c4ba" stroke-width="2" fill="none"/></svg>
+    </div>
+
+    <!-- OPENCLAW -->
+    <div style="flex-shrink: 0; border: 3px solid var(--red); background: var(--surface); padding: 18px 20px; text-align: center; min-width: 150px;">
+      <div style="font-size: 0.72em; font-weight: 600; color: var(--red);">OpenClaw</div>
+      <div style="font-size: 0.55em; color: var(--dim); margin-top: 4px;">parse &middot; tag &middot; commit</div>
+    </div>
+
+    <!-- ARROW: OpenClaw → PKB -->
+    <div style="flex-shrink: 0; padding: 0 8px;">
+      <svg viewBox="0 0 40 20" style="width: 40px; height: 20px;"><path d="M0 10 H32 L26 4 M32 10 L26 16" stroke="#c8c4ba" stroke-width="2" fill="none"/></svg>
+    </div>
+
+    <!-- PKB -->
+    <div style="flex-shrink: 0; border: 3px solid var(--black); background: var(--surface); padding: 18px 20px; text-align: center; min-width: 120px;">
+      <div style="font-size: 0.72em; font-weight: 600; color: var(--black);">PKB</div>
+      <div style="font-size: 0.55em; color: var(--dim); margin-top: 4px;">Git + Markdown</div>
+    </div>
+
+    <!-- BIDIRECTIONAL ARROWS: PKB ↔ outputs -->
+    <div style="flex-shrink: 0; padding: 0 8px;">
+      <svg viewBox="0 0 40 24" style="width: 40px; height: 24px;">
+        <path d="M0 8 H32 L26 2 M32 8 L26 14" stroke="#c8c4ba" stroke-width="2" fill="none"/>
+        <path d="M40 18 H8 L14 12 M8 18 L14 24" stroke="#c8c4ba" stroke-width="1.5" fill="none" stroke-dasharray="3,2"/>
+      </svg>
+    </div>
+
+    <!-- OUTPUTS -->
+    <div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 6px;">
+      <div style="border: 2px solid #6a9955; background: var(--surface); padding: 14px 18px;">
+        <div style="font-size: 0.68em; font-weight: 600; color: #4a7a38;">Obsidian</div>
+        <div style="font-size: 0.55em; color: var(--dim); margin-top: 2px;">browse &middot; link &middot; edit</div>
+      </div>
+      <div style="border: 2px solid var(--red); background: var(--surface); padding: 14px 18px;">
+        <div style="font-size: 0.68em; font-weight: 600; color: var(--red);">Agent Query</div>
+        <div style="font-size: 0.55em; color: var(--dim); margin-top: 2px;">&ldquo;what do I know about&hellip;&rdquo;</div>
+      </div>
+    </div>
+
+  </div>
+  <p style="margin-top: 14px; font-size: 0.68em; color: var(--dim);">User edits in Obsidian trigger auto-curation. The loop is continuous.</p>
+</section>
+
+<!-- ============================================ -->
+<!-- 7. OPENCLAW -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label red-label">Agent Interface</span>
+  <hr class="rule">
+  <h2>Your brain gets <span class="red">hands</span></h2>
+  <div class="arch-row">
+    <div class="arch-node">
+      <strong>You</strong>
+      <span>Obsidian</span>
+    </div>
+    <div class="arch-conn"></div>
+    <div class="arch-node active">
+      <strong>PKB</strong>
+      <span>Git + Markdown</span>
+    </div>
+    <div class="arch-conn"></div>
+    <div class="arch-node">
+      <strong>OpenClaw</strong>
+      <span>AI Agent</span>
+    </div>
+  </div>
+  <div class="grid" style="margin-top: 16px;">
+    <div class="grid-item">
+      <h3>Curator</h3>
+      <p>Formats, tags, and indexes every source.</p>
+    </div>
+    <div class="grid-item">
+      <h3>Analyst</h3>
+      <p>Tracks trends in workouts, health, projects.</p>
+    </div>
+    <div class="grid-item">
+      <h3>Gardener</h3>
+      <p>Refactors links. Keeps the graph healthy.</p>
+    </div>
+  </div>
+  <p style="margin-top: 16px; font-size: 0.72em; color: var(--dim);">Every action is a git commit. Full audit trail.</p>
+</section>
+
+<!-- ============================================ -->
+<!-- 8. CAPTURE -->
+<!-- ============================================ -->
+<section>
+  <div class="stage">Capture</div>
+  <hr class="rule">
+  <h2>Structured from casual</h2>
+  <div class="io-row">
+    <div class="io-box input">
+      <div class="io-label red-label">You text</div>
+      <div class="io-text">"CGB 105x10x3, curls 45x10x3,<br>skull crushers 40x10x3. RPE 7."</div>
+    </div>
+    <div class="io-box">
+      <div class="io-label">OpenClaw</div>
+      <div class="io-detail">
+        <span class="black">current-loads.md</span> &rarr; targets updated<br>
+        <span class="black">2026-02-Exercise.md</span> &rarr; session appended<br>
+        <span class="red">git commit &amp; push</span>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top: 16px; font-size: 0.72em; color: var(--dim);">
+    Structured data + narrative log + version history. One casual message.
+  </p>
+</section>
+
+<!-- ============================================ -->
+<!-- 9. CONNECT -->
+<!-- ============================================ -->
+<section>
+  <div class="stage">Connect</div>
+  <hr class="rule">
+  <h2>Cross-domain intelligence</h2>
+  <div class="io-row">
+    <div class="io-box input">
+      <div class="io-label red-label">You send</div>
+      <div class="io-text">"Blood test results came in.<br>Here are the images."</div>
+    </div>
+    <div class="io-box">
+      <div class="io-label">OpenClaw</div>
+      <div class="io-detail">
+        Extracts lab values &rarr; <span class="black">docs/health/</span><br>
+        Hematocrit 54.9% &rarr; checks <span class="black">workout logs</span><br>
+        <span class="red">"Flag: increase hydration before deadlifts"</span><br>
+        ALT elevated &rarr; checks <span class="black">supplement protocol</span><br>
+        <span class="red">"Flagging supplement X as potential cause"</span>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top: 16px; font-size: 0.72em; color: var(--dim);">
+    No single app owns blood tests, workouts, <em>and</em> supplements. The PKB does.
+  </p>
+</section>
+
+<!-- ============================================ -->
+<!-- 10. REASON -->
+<!-- ============================================ -->
+<section>
+  <div class="stage">Reason</div>
+  <hr class="rule">
+  <h2>Provenance and conditionals</h2>
+  <div class="io-row">
+    <div class="io-box" style="border-left: 4px solid var(--black);">
+      <div class="io-label" style="color: var(--black);">"Why did we bump CGB to 115?"</div>
+      <div class="io-detail">
+        Agent traces git history:<br>
+        Feb 14: <span class="black">"CGB easy (+)"</span><br>
+        Feb 21: <span class="black">"CGB easy, all lifts easy"</span><br>
+        &rarr; Two consecutive sessions marked easy<br>
+        <span class="red">&rarr; Auto-incremented target to 115 lbs</span>
+      </div>
+    </div>
+    <div class="io-box" style="border-left: 4px solid var(--black);">
+      <div class="io-label" style="color: var(--black);">"Should I take Tongkat Ali?"</div>
+      <div class="io-detail">
+        Protocol: <span class="black">"Add ONLY IF Free T is Low/Normal"</span><br>
+        Agent checks Kaiser labs (Jan 2025)<br>
+        Agent checks LabCorp (Jan 2026)<br>
+        <span class="red">&rarr; No Free T data. Recommend testing first.</span>
+      </div>
+    </div>
+  </div>
+  <p style="margin-top: 16px; font-size: 0.72em; color: var(--dim);">
+    You didn't document the reasoning. The agent <em>reconstructed</em> it.
+  </p>
+</section>
+
+<!-- ============================================ -->
+<!-- 11. ACT -->
+<!-- ============================================ -->
+<section>
+  <div class="stage">Act</div>
+  <hr class="rule">
+  <h2>From knowledge to action</h2>
+  <div style="margin-top: 16px;">
+    <div class="sms" style="max-width: 100%; font-size: 0.72em; line-height: 1.7;">
+      Based on your purchase history and current dosing regimen, you&rsquo;ll need more Magnesium Glycinate this week.<br><br>
+      I did some research and found these highly rated options that are cheaper than your usual brand:<br><br>
+      &bull; <span style="color: var(--black);">BioEmblem Triple Mag</span> &mdash; $18.90 (vs. $24.99) &middot; 4.7&star;<br>
+      &bull; <span style="color: var(--black);">NOW Foods Magnesium Glycinate</span> &mdash; $16.49 &middot; 4.6&star;<br><br>
+      Want me to place an order?
+    </div>
+    <div class="sms-meta">OpenClaw &middot; 08:15 AM</div>
+  </div>
+  <div class="callout" style="margin-top: 20px;">
+    <p>
+      <span class="red">Capture &rarr; Connect &rarr; Reason &rarr; Act.</span><br>
+      Same data. Each layer builds on the last.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================ -->
+<!-- 11. CTA -->
+<!-- ============================================ -->
+<section>
+  <span class="section-label">Start</span>
+  <hr class="rule">
+  <h2>Own your data.<br>Build your second brain.</h2>
+  <div class="callout" style="margin-top: 20px;">
+    <p>
+      Agents will come and go. Models will change.<br>
+      <span class="red">Your data &mdash; in plaintext, in Git &mdash; survives all of it.</span>
+    </p>
+  </div>
+  <div style="display: flex; align-items: center; gap: 32px; margin-top: 28px;">
+    <div>
+      <p style="font-size: 0.72em; color: var(--dim); margin-bottom: 6px;">PKB Starter Kit</p>
+      <p style="font-size: 0.78em; color: var(--red);">
+        <a href="https://github.com/hyjkimbot/openclaw-pkb" style="color: var(--red);">github.com/hyjkimbot/openclaw-pkb</a>
+      </p>
+      <p style="font-size: 0.68em; color: var(--dim); margin-top: 12px;">
+        Clone it. Point OpenClaw at it. Go.
+      </p>
+    </div>
+    <div style="background: #1a1a18; padding: 12px; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;">
+      <img src="assets/qr.png" alt="QR Code" style="width: 216px; height: 216px; image-rendering: pixelated;">
+    </div>
+  </div>
+  <p class="meta" style="margin-top: 28px;">John Kim &middot; 2026</p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  slideNumber: 'c/t',
+  width: 1280,
+  height: 720,
+  margin: 0.06,
+  transition: 'none',
+  backgroundTransition: 'none',
+  center: false,
+  controls: true,
+  controlsTutorial: false,
+  progress: true,
+});
+</script>
+</body>
+</html>
