@@ -1,6 +1,7 @@
 ---
 name: pkb
-description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, and managing a Git-backed Obsidian vault.
+version: 0.2.0
+description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, structured logging, and managing a Git-backed Obsidian vault.
 ---
 
 # PKB Ingest Workflow
@@ -71,3 +72,58 @@ This skill manages a local Obsidian vault backed by Git. It prioritizes data int
 
 ## 5. Maintenance
 - **Refactor**: Use `scripts/refactor.py old.md new.md` to safely move files and update wikilinks.
+
+## 6. Structured Logging (CSV)
+
+### General Principles
+- Time-series data (nutrition, mood, symptoms, workouts, finances, etc.) should be stored as CSV, not markdown tables.
+- CSV files are the single source of truth — do not maintain parallel markdown copies.
+- Obsidian renders CSVs via the **CSV Lite** community plugin.
+- When plotting or analyzing log data, read CSVs directly with code (e.g., `pd.read_csv()` / `glob` + `concat`). Do NOT use LLM calls to extract data from logs.
+- Every CSV file must include a header row matching its schema exactly.
+
+### File Structure
+Logs are stored as monthly CSV files in per-topic directories to keep files small and in-place edits cheap:
+
+```
+docs/<domain>/<log-name>/YYYY-MM.csv
+```
+
+Example:
+```
+docs/health/nutrition-log/2026-03.csv
+docs/health/daily-checkin/2026-03.csv
+docs/finance/expenses/2026-03.csv
+```
+
+Each log directory should have an index file (`docs/<domain>/<log-name>.md`) with wikilinks to each monthly CSV for Obsidian navigation.
+
+### Workflow
+
+1. **Pull first**: `git pull` before any edits.
+2. **Determine the file**: Use the entry's date to pick the correct monthly file. If the file doesn't exist yet (new month), create it with the header row first, then add a wikilink to the corresponding index `.md` file.
+3. **Append**: Add new rows to the end of the monthly CSV using shell append:
+   ```
+   echo 'col1,col2,...' >> docs/health/nutrition-log/2026-03.csv
+   ```
+   Do NOT sort or reorder existing rows.
+4. **In-place update**: When correcting a previously logged entry, edit the existing row in place rather than appending a duplicate. Match on date + identifying columns to find the row.
+5. **Commit & Push**: Stage the changed CSV, commit with a descriptive message, and push.
+
+### Defining a Log Schema
+Each log needs a documented schema. Example:
+
+```
+# Nutrition Log
+Columns: date,meal,intake,cal_lo,cal_hi,pro_lo,pro_hi,status,notes
+- date: YYYY-MM-DD
+- cal_lo, cal_hi: integer calorie bounds (same value if single estimate)
+- status: one of confirmed, tentative, updated
+```
+
+Register schemas in `scripts/pkb-validate.py` to enforce column headers, types, and enums on commit.
+
+### Rules
+- No units in numeric columns (no `kcal`, no `g`, no `$`).
+- Wrap values in double quotes if they contain commas.
+- Do NOT add computed summary rows (e.g., "Day Total"). Totals are derived from the data.

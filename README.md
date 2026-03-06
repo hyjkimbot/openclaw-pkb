@@ -49,7 +49,12 @@ To view and edit these notes pleasantly:
     *   Browse → Search for **"Fit"** (by Joshua K. To).
     *   Install & Enable.
 
-4.  **Configure Fit**:
+4.  **Install CSV Lite Plugin** (for structured logs):
+    *   Settings → Community Plugins → Browse → Search for **"CSV Lite"**.
+    *   Install & Enable.
+    *   *Why?* The PKB stores time-series data (nutrition, mood, workouts, etc.) as CSV files. CSV Lite renders them as readable tables inside Obsidian.
+
+5.  **Configure Fit**:
     *   **Generate Token**: Go to GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic).
     *   Generate a new token with **`repo`** scope. Copy it.
     *   **Obsidian Settings**: Go to Fit settings.
@@ -69,7 +74,7 @@ This skill enables your AI agent to manage the vault. Here are the standard work
 
 ### 2. Logging
 *   **User:** "Log a workout: Bench 135x10, felt easy."
-*   **Agent:** Appends to `journal/YYYY-MM-DD.md` or specialized logs like `docs/exercise/log.md`.
+*   **Agent:** Appends a CSV row to the current month's file (e.g., `docs/exercise/workout-log/2026-03.csv`). See SKILL.md section 6 for the structured logging workflow.
 
 ### 3. Refactoring
 *   **User:** "Rename the 'Project X' note to 'Project Y'."
@@ -84,11 +89,16 @@ This skill enables your AI agent to manage the vault. Here are the standard work
 ```
 pkb/
 ├── docs/
-│   ├── sources/    # External knowledge (articles, books)
-│   └── projects/   # Active work
-├── mocs/           # Maps of Content (indexes)
-├── scripts/        # Automation scripts
-├── .gitignore      # Standard gitignore
+│   ├── sources/        # External knowledge (articles, books)
+│   ├── projects/       # Active work
+│   └── health/         # Example domain for structured logs
+│       ├── nutrition-log.md    # Index with links to monthly CSVs
+│       └── nutrition-log/      # Monthly CSV files
+│           ├── 2026-02.csv
+│           └── 2026-03.csv
+├── mocs/               # Maps of Content (indexes)
+├── scripts/            # Automation scripts
+├── .gitignore          # Standard gitignore
 └── README.md
 ```
 

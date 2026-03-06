@@ -58,6 +58,16 @@ source: [URL or Citation]
 ---
 ```
 
+## Structured Logs vs. Notes
+Not everything belongs in a markdown note. **Time-series data** (meals, mood, workouts, expenses) should be stored as CSV files, not markdown tables:
+
+- CSV files live in `docs/<domain>/<log-name>/YYYY-MM.csv` (monthly partitions).
+- Each log directory has an index `.md` file with wikilinks to monthly CSVs.
+- Schemas are documented in `SKILL.md` and enforced by `pkb-validate.py`.
+- Use the **CSV Lite** Obsidian plugin to view CSVs in the vault.
+
+**Why not markdown tables?** They require LLM-based text parsing to plot or analyze, which is expensive and error-prone. CSV is directly readable by code.
+
 ## The "AI Contract"
 **Agents must follow these rules when editing:**
 1.  **Never break links.** Use `refactor.py` to move/rename.
