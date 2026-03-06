@@ -62,5 +62,85 @@ for f in files:
                 # Warning only for starter kit
                 # sys.exit(1) 
 
+# --- CSV log validation ---
+# To enforce schemas on your CSV logs, add entries to CSV_DIR_SCHEMAS below.
+# Each key is a directory prefix; any staged .csv file under it will be validated.
+#
+# Example:
+#   'docs/health/nutrition-log/': {
+#       'columns': ['date','meal','intake','cal_lo','cal_hi','status'],
+#       'required': ['date','meal','intake'],
+#       'integers': ['cal_lo','cal_hi'],
+#       'numbers': [],
+#       'enums': {'status': {'confirmed','tentative','updated',''}},
+#   }
+
+import csv
+
+CSV_DIR_SCHEMAS = {
+    # Add your log schemas here. Example commented out above.
+}
+
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+csv_files_to_validate = []
+for f in files:
+    for dir_prefix, schema in CSV_DIR_SCHEMAS.items():
+        if f.startswith(dir_prefix) and f.endswith('.csv'):
+            csv_files_to_validate.append((f, schema))
+            break
+
+for csv_path, schema in csv_files_to_validate:
+    full = os.path.join(BASE, csv_path)
+    if not os.path.exists(full):
+        continue
+    try:
+        with open(full, 'r', encoding='utf-8', newline='') as fh:
+            reader = csv.DictReader(fh)
+            header = reader.fieldnames or []
+
+            if list(header) != schema['columns']:
+                print(f"PKB validate: {csv_path} header mismatch: expected {schema['columns']}, got {list(header)}")
+                sys.exit(1)
+
+            for i, row in enumerate(reader, start=2):
+                if all(v.strip() == '' for v in row.values()):
+                    continue
+
+                for col in schema.get('required', []):
+                    if not row.get(col, '').strip():
+                        print(f"PKB validate: {csv_path} row {i}: missing required field '{col}'")
+                        sys.exit(1)
+
+                if 'date' in row and row['date'].strip():
+                    if not DATE_RE.match(row['date'].strip()):
+                        print(f"PKB validate: {csv_path} row {i}: invalid date '{row['date']}' (expected YYYY-MM-DD)")
+                        sys.exit(1)
+
+                for col in schema.get('integers', []):
+                    val = row.get(col, '').strip()
+                    if val and not val.lstrip('-').isdigit():
+                        print(f"PKB validate: {csv_path} row {i}: '{col}' must be integer, got '{val}'")
+                        sys.exit(1)
+
+                for col in schema.get('numbers', []):
+                    val = row.get(col, '').strip()
+                    if val:
+                        try:
+                            float(val)
+                        except ValueError:
+                            print(f"PKB validate: {csv_path} row {i}: '{col}' must be numeric, got '{val}'")
+                            sys.exit(1)
+
+                for col, allowed_vals in schema.get('enums', {}).items():
+                    val = row.get(col, '').strip()
+                    if val and val not in allowed_vals:
+                        print(f"PKB validate: {csv_path} row {i}: '{col}' must be one of {allowed_vals}, got '{val}'")
+                        sys.exit(1)
+
+    except csv.Error as e:
+        print(f"PKB validate: {csv_path} CSV parse error: {e}")
+        sys.exit(1)
+
 print('PKB validate: OK')
 sys.exit(0)
