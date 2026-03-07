@@ -54,7 +54,7 @@ To view and edit these notes pleasantly:
     *   Install & Enable.
     *   *Why?* The PKB stores time-series data (nutrition, mood, workouts, etc.) as CSV files. CSV Lite renders them as readable tables inside Obsidian.
 
-5.  **Configure Fit**:
+5.  **Configure Fit** (optional — requires GitHub):
     *   **Generate Token**: Go to GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic).
     *   Generate a new token with **`repo`** scope. Copy it.
     *   **Obsidian Settings**: Go to Fit settings.
@@ -63,6 +63,13 @@ To view and edit these notes pleasantly:
     *   Enter your **Repository Name** (e.g., `openclaw-pkb`).
     *   Enter your **Branch Name** (usually `main`).
     *   *Why?* Fit handles Git synchronization (pull/push) more seamlessly for this workflow than Obsidian Git.
+    *   *Note:* If you skip this step, local Git still provides full version history — you just won't have remote backup/sync.
+
+6.  **External File Storage** (optional — for durable source documents):
+    *   Create a `pkb/` folder in Google Drive (or any cloud storage).
+    *   Use it to store original PDFs, scans, and other binary source documents that don't belong in Git.
+    *   The agent will link to these via `source_ref` in note frontmatter. See SKILL.md "Durable Source Storage" for details.
+    *   *Why?* Raw text transcriptions (OCR, copy-paste) are lossy. When exact numbers matter (lab results, financial docs), the original binary is the only reliable source of truth.
 
 ## Agent Interaction
 

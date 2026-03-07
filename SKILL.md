@@ -1,6 +1,6 @@
 ---
 name: pkb
-version: 0.2.0
+version: 0.3.0
 description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, structured logging, and managing a Git-backed Obsidian vault.
 ---
 
@@ -46,9 +46,34 @@ This skill manages a local Obsidian vault backed by Git. It prioritizes data int
   1.  Run `python3 scripts/pkb-validate.py`.
   2.  Fix any errors (missing tags, bad frontmatter) before committing.
 
+## External Services (Optional)
+
+The PKB works fully offline with just local Git. External services enhance durability and collaboration but are never required.
+
+- **Git remote (GitHub, etc.):** Recommended for backup and multi-device sync. If not configured, skip `git push`/`git pull` — local commits still provide version history.
+- **External file storage (Google Drive, S3, etc.):** Recommended for preserving original binary sources (PDFs, scans, images) that are too large or lossy to store as raw text in Git. If not configured, the raw text transcription in `docs/sources/raw/` is the only source copy.
+
+### Durable Source Storage (Optional)
+
+Documents requiring later verification (lab reports, legal/tax docs, scanned receipts) should preserve the original file outside Git. Text transcriptions (OCR, copy-paste) are lossy and error-prone — the original binary is the only reliable audit trail.
+
+If external storage is configured:
+1. **Upload original** to a `pkb/` folder in your storage provider (e.g., Google Drive `pkb/Health/Lab Reports/`). Keep files **private/restricted**.
+2. **Add provenance frontmatter** to the source note:
+   ```yaml
+   source_ref: drive:<fileId>    # or s3:<key>, local:<path>, etc.
+   extraction_method: pdf-direct  # or ocr, manual, llm
+   verification: verified         # or pending, disputed
+   ```
+   - `source_ref` uses a stable identifier (Drive file ID, S3 key), not a URL that may change.
+   - `verification` tracks whether extracted data has been confirmed against the original.
+3. **Optionally maintain a manifest** (a CSV mapping source note IDs to external file IDs + checksums) for restoreability.
+
+**Token cost rule:** Read the original document once during ingestion to extract structured data (CSV rows, markdown summary). For all subsequent queries, use the extracted data only. Re-read the original only if a value is disputed.
+
 ## Git Operations
-- **Always Pull First:** `git -C pkb pull`
-- **Always Push After:** `git -C pkb commit ... && git -C pkb push`
+- **Always Pull First:** `git -C pkb pull` (skip if no remote configured)
+- **Always Push After:** `git -C pkb commit ... && git -C pkb push` (skip push if no remote)
 - **Commit Messages:** Use conventional commits (`feat:`, `chore:`, `docs:`).
 
 ## 1. Preparation
