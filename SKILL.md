@@ -67,7 +67,6 @@ If external storage is configured:
    ```
    - `source_ref` uses a stable identifier (Drive file ID, S3 key), not a URL that may change.
    - `verification` tracks whether extracted data has been confirmed against the original.
-3. **Optionally maintain a manifest** (a CSV mapping source note IDs to external file IDs + checksums) for restoreability.
 
 **Token cost rule:** Read the original document once during ingestion to extract structured data (CSV rows, markdown summary). For all subsequent queries, use the extracted data only. Re-read the original only if a value is disputed.
 
