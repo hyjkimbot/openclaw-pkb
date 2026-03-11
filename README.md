@@ -64,8 +64,15 @@ To view and edit these notes pleasantly:
     *   Enter your **Branch Name** (usually `main`).
     *   *Why?* Fit handles Git synchronization (pull/push) more seamlessly for this workflow than Obsidian Git.
     *   *Note:* If you skip this step, local Git still provides full version history — you just won't have remote backup/sync.
+    *   **⚠️ Security Note**: Fit stores your GitHub PAT in plaintext at `.obsidian/plugins/fit/data.json`. The included `.gitignore` excludes this file to prevent accidental token exposure. If your repo is public, verify this file is not tracked before pushing.
 
-6.  **External File Storage** (optional — for durable source documents):
+6.  **Exclude Fit sync artifacts from Obsidian**:
+    *   The Fit plugin creates a `_fit/` directory containing a full mirror of your vault for sync state tracking. These duplicate markdown files will pollute Obsidian's graph view and search results.
+    *   Go to **Settings → Files & Links → Excluded Files** and add `_fit/`.
+    *   Alternatively, add `"userIgnoreFilters": ["_fit/"]` to `.obsidian/app.json`.
+    *   The included `.gitignore` also excludes `_fit/` from version control.
+
+7.  **External File Storage** (optional — for durable source documents):
     *   Create a `pkb/` folder in Google Drive (or any cloud storage).
     *   Use it to store original PDFs, scans, and other binary source documents that don't belong in Git.
     *   The agent will link to these via `source_ref` in note frontmatter. See SKILL.md "Durable Source Storage" for details.
@@ -105,7 +112,8 @@ pkb/
 │           └── 2026-03.csv
 ├── mocs/               # Maps of Content (indexes)
 ├── scripts/            # Automation scripts
-├── .gitignore          # Standard gitignore
+├── _fit/               # Fit plugin sync state (gitignored)
+├── .gitignore          # Excludes Fit PAT, sync artifacts, OS files
 └── README.md
 ```
 

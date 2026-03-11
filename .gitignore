@@ -1,0 +1,11 @@
+# Obsidian
+.obsidian/cache/
+.obsidian/workspace.json
+.obsidian/plugins/fit/data.json
+
+# Fit plugin sync artifact
+_fit/
+
+# OS
+.DS_Store
+Thumbs.db
