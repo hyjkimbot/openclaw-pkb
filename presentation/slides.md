@@ -33,9 +33,9 @@
 > *"Provenance is Infrastructure."*
 
 *   **The Vault Structure**:
-    *   `docs/sources/`: Raw intake (articles, papers). 
+    *   `docs/sources/`: Raw intake (articles, papers).
+    *   `docs/health/`: CSV databases (nutrition, check-ins, lab results) + Google Drive refs for originals.
     *   `mocs/`: Maps of Content (the "neural pathways").
-    *   `journal/`: Daily logs and quantified self data.
 *   **The Agent's Role (OpenClaw)**:
     *   **Curator**: It doesn't just "save" files; it formats frontmatter, tags ontologies, and updates indices.
     *   **Analyst**: It tracks trends (e.g., workout loads) and commits data directly to the repo.
@@ -57,9 +57,17 @@
 *   **User**: "Bench press 225x5, RPE 8."
 *   **OpenClaw**:
     1.  Parses the data.
-    2.  Updates `docs/exercise/current-loads.json` (structured state).
-    3.  Appends to daily log (narrative state).
+    2.  Updates `docs/exercise/current-loads.md` (structured state).
+    3.  Appends to monthly CSV log.
     4.  Commits & Pushes instantly.
+
+### C. Structured Data Layer (CSV, not chat logs)
+*   **Token-efficient**: 1 meal = 1 CSV row (~40 tokens). The agent reads an entire month in one pass.
+*   **Machine-readable**: Same file feeds Obsidian (CSV Lite), pandas, matplotlib, dashboards.
+*   **Durable originals**: PDFs and lab reports stored in Google Drive, referenced by stable file ID. Text extraction happens once.
+*   **Charts**: One script generates trend plots (calories, protein, mood, energy, sleep) from the same CSVs.
+
+![Health Trends Chart](assets/health_trends.png)
 
 ---
 

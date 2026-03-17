@@ -334,7 +334,10 @@
 ├── <span class="red">docs/</span>
 │   ├── <span class="red">sources/</span>    <span class="comment"># articles, papers, recipes</span>
 │   ├── <span class="red">exercise/</span>   <span class="comment"># workout logs &amp; loads</span>
-│   └── <span class="red">health/</span>     <span class="comment"># lab results, supplements</span>
+│   └── <span class="red">health/</span>
+│       ├── <span class="red">nutrition-log/</span> <span class="comment"># monthly CSV</span>
+│       ├── <span class="red">daily-checkin/</span> <span class="comment"># monthly CSV</span>
+│       └── <span class="red">lab-results/</span>   <span class="comment"># all.csv + Drive refs</span>
 ├── <span class="red">mocs/</span>           <span class="comment"># Maps of Content</span>
 ├── <span class="red">blocks/</span>         <span class="comment"># quick notes</span>
 └── <span class="red">.agent/</span>         <span class="comment"># agent rules</span></div>
@@ -507,13 +510,17 @@
 
     <!-- OUTPUTS -->
     <div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 6px;">
-      <div style="border: 2px solid #6a9955; background: var(--surface); padding: 14px 18px;">
+      <div style="border: 2px solid #6a9955; background: var(--surface); padding: 10px 18px;">
         <div style="font-size: 0.68em; font-weight: 600; color: #4a7a38;">Obsidian</div>
         <div style="font-size: 0.55em; color: var(--dim); margin-top: 2px;">browse &middot; link &middot; edit</div>
       </div>
-      <div style="border: 2px solid var(--red); background: var(--surface); padding: 14px 18px;">
+      <div style="border: 2px solid var(--red); background: var(--surface); padding: 10px 18px;">
         <div style="font-size: 0.68em; font-weight: 600; color: var(--red);">Agent Query</div>
         <div style="font-size: 0.55em; color: var(--dim); margin-top: 2px;">&ldquo;what do I know about&hellip;&rdquo;</div>
+      </div>
+      <div style="border: 2px solid #ff7f0e; background: var(--surface); padding: 10px 18px;">
+        <div style="font-size: 0.68em; font-weight: 600; color: #ff7f0e;">Charts</div>
+        <div style="font-size: 0.55em; color: var(--dim); margin-top: 2px;">CSV &rarr; pandas &rarr; matplotlib</div>
       </div>
     </div>
 
@@ -577,7 +584,7 @@
       <div class="io-label">OpenClaw</div>
       <div class="io-detail">
         <span class="black">current-loads.md</span> &rarr; targets updated<br>
-        <span class="black">2026-02-Exercise.md</span> &rarr; session appended<br>
+        <span class="black">2026-03-Exercise.md</span> &rarr; session appended<br>
         <span class="red">git commit &amp; push</span>
       </div>
     </div>
@@ -588,7 +595,37 @@
 </section>
 
 <!-- ============================================ -->
-<!-- 9. CONNECT -->
+<!-- 9. STRUCTURED DATA -->
+<!-- ============================================ -->
+<section>
+  <div class="stage">Store</div>
+  <hr class="rule">
+  <h2>CSV, not chat logs</h2>
+  <div style="display: flex; gap: 2px; margin-top: 16px;">
+    <div style="flex: 1;">
+      <div class="mono-block" style="font-size: 0.6em; line-height: 1.6; margin-bottom: 12px;">
+<span class="comment"># nutrition-log/2026-03.csv</span>
+<span class="hl">date,meal,intake,cal_lo,cal_hi,pro_lo,pro_hi,status</span>
+2026-03-17,Breakfast,omelette,420,420,32,32,confirmed
+2026-03-17,Lunch,Asian Box chicken,680,750,42,48,confirmed</div>
+      <ul class="principle-list" style="margin-top: 8px;">
+        <li><span class="black">Token-efficient</span> <span class="sub">&mdash; 1 meal = 1 CSV row (~40 tokens). The agent reads an entire month in one pass.</span></li>
+        <li><span class="black">Machine-readable</span> <span class="sub">&mdash; same file feeds Obsidian, pandas, matplotlib, dashboards. No parsing needed.</span></li>
+        <li><span class="black">Durable originals</span> <span class="sub">&mdash; PDFs and lab reports stored in Google Drive, referenced by stable file ID. Text extraction happens once.</span></li>
+      </ul>
+    </div>
+    <div style="flex: 1; padding-left: 24px;">
+      <img src="assets/health_trends.png" alt="PKB Health Trends Chart" style="width: 100%; border: 2px solid var(--border);">
+      <p style="font-size: 0.62em; color: var(--dim); margin-top: 6px;">
+        Generated from CSV with one script: <span class="black">plot_health_metrics.py</span><br>
+        Calories &amp; protein bands + mood, energy, sleep &mdash; all from the same logs.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ -->
+<!-- 10. CONNECT -->
 <!-- ============================================ -->
 <section>
   <div class="stage">Connect</div>
