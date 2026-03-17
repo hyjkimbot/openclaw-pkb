@@ -77,6 +77,11 @@ If external storage is configured:
 
 ## 1. Preparation
 - **Pull Latest**: Always run `git -C pkb pull` before starting.
+- **Fit Plugin Sync Recovery**: If you use the Obsidian **Fit** plugin (or similar git-sync plugins) to push from mobile, your local branch can fall behind `origin/main` while file sync (iCloud, Syncthing, etc.) keeps the working directory up-to-date. This causes `git pull` to fail with "dirty working tree" errors even though the files already match the remote. When this happens:
+  1. Run `git fetch origin`.
+  2. Run `git diff origin/main -- <modified files>` to check if local files already match the remote.
+  3. If they match (no diff output), run `git reset origin/main` to fast-forward the local branch pointer without touching files.
+  4. If there are real local differences, use `git stash && git pull && git stash pop` instead and resolve any conflicts.
 - **Deduplication**: Check `docs/sources/` for existing notes with similar titles.
 
 ## 2. Ingesting
