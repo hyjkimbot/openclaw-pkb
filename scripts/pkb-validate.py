@@ -24,6 +24,20 @@ try:
 except ImportError:
     AUTHORITY_AVAILABLE = False
 
+# Provenance indexing is also optional. v1 is opt-in via citation_status,
+# never coercive — the validator surfaces issues as warnings only and
+# never blocks commits on provenance metadata.
+try:
+    from pkb_provenance import (  # noqa: E402
+        ProvenanceError,
+        build_full_index as build_provenance_index,
+        collect_dangling_targets,
+        extract_provenance,
+    )
+    PROVENANCE_AVAILABLE = True
+except ImportError:
+    PROVENANCE_AVAILABLE = False
+
 frontmatter_re = re.compile(r'^---\n(.*?)\n---\n', re.S)
 required_fm = {'id','created','tags'}
 
@@ -252,6 +266,40 @@ if AUTHORITY_AVAILABLE:
                     print(f"PKB validate: failed to stage updated {rel_index}: "
                           f"{exc}")
                     sys.exit(1)
+
+# --- Provenance metadata (warnings only, never blocking) ---
+# Per design, v1 is opt-in via citation_status. Stage commits never fail
+# based on provenance — we only surface issues on staged files that
+# already opted in, so users see structural problems they introduced.
+if PROVENANCE_AVAILABLE:
+    md_changed_for_prov = [f for f in files if f.endswith('.md')]
+    for rel in md_changed_for_prov:
+        full = os.path.join(BASE, rel)
+        if not os.path.exists(full):
+            continue
+        try:
+            with open(full, 'r', encoding='utf-8') as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        try:
+            rec = extract_provenance(rel, text)
+        except ProvenanceError as exc:
+            print(f"PKB validate: provenance warning: {exc}")
+            continue
+        except Exception:
+            # YAML parse errors etc. — handled by other validators
+            continue
+        if rec is None:
+            continue
+        # Soft check: dangling source_notes / raw_sources
+        for target in rec.source_notes + rec.raw_sources:
+            target_full = os.path.join(BASE, target)
+            if not os.path.exists(target_full):
+                print(
+                    f"PKB validate: provenance warning: {rel} references "
+                    f"missing target {target}"
+                )
 
 print('PKB validate: OK')
 sys.exit(0)

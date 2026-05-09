@@ -22,6 +22,15 @@ from typing import Iterable
 
 import yaml
 
+from pkb_frontmatter import (
+    FRONTMATTER_RE,
+    FrontmatterError,
+    coerce_list as _coerce_list_shared,
+    field_present_in_raw,
+    iter_markdown_files as _iter_markdown_files_shared,
+    parse_frontmatter as _parse_frontmatter_shared,
+)
+
 
 VALID_STATUSES = {
     "current",
@@ -35,7 +44,6 @@ VALID_STATUSES = {
 }
 
 CANONICAL_KEY_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
-FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.S)
 
 # Backtick-wrapped key inside a list item: `- \`key\` — description`.
 # Matches the format used in `.agent/index/canonical-keys.md`.
@@ -51,13 +59,6 @@ AUTHORITY_FIELD_NAMES = (
     "supersedes",
     "superseded_by",
     "authority_scope",
-)
-# `status` is also an authority field, but it's matched separately because
-# the structured field is just `status:` (no value form distinguishes it
-# from a tag-style legacy `status: status/stable`).
-AUTHORITY_FIELD_RE = re.compile(
-    r"^\s*(?:" + "|".join(AUTHORITY_FIELD_NAMES) + r")\s*:",
-    re.MULTILINE,
 )
 
 
@@ -92,24 +93,12 @@ class AuthorityError(Exception):
 
 
 def parse_frontmatter(text: str) -> dict | None:
-    """Return the YAML-parsed frontmatter dict, or None if no frontmatter.
-
-    Returns an empty dict for empty frontmatter blocks.
-    """
-    match = FRONTMATTER_RE.match(text)
-    if not match:
-        return None
-    raw = match.group(1)
-    if not raw.strip():
-        return {}
-    parsed = yaml.safe_load(raw)
-    if parsed is None:
-        return {}
-    if not isinstance(parsed, dict):
-        raise AuthorityError(
-            f"frontmatter must be a YAML mapping, got {type(parsed).__name__}"
-        )
-    return parsed
+    """Re-export of pkb_frontmatter.parse_frontmatter that surfaces
+    structural errors as AuthorityError for callers that catch it."""
+    try:
+        return _parse_frontmatter_shared(text)
+    except FrontmatterError as exc:
+        raise AuthorityError(str(exc)) from exc
 
 
 def has_authority_intent(text: str) -> bool:
@@ -120,11 +109,7 @@ def has_authority_intent(text: str) -> bool:
     don't block the authority audit on documents that have no authority
     intent at all.
     """
-    match = FRONTMATTER_RE.match(text)
-    if not match:
-        return False
-    raw = match.group(1)
-    return bool(AUTHORITY_FIELD_RE.search(raw))
+    return field_present_in_raw(text, AUTHORITY_FIELD_NAMES)
 
 
 def _coerce_list(value, field_name: str, source: str) -> list[str]:
@@ -132,22 +117,7 @@ def _coerce_list(value, field_name: str, source: str) -> list[str]:
 
     Accepts: list of strings, single string, or None/missing (returns []).
     """
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, list):
-        for item in value:
-            if not isinstance(item, str):
-                raise AuthorityError(
-                    f"{source}: '{field_name}' must be a list of strings, "
-                    f"got {type(item).__name__}: {item!r}"
-                )
-        return list(value)
-    raise AuthorityError(
-        f"{source}: '{field_name}' must be a string or list of strings, "
-        f"got {type(value).__name__}"
-    )
+    return _coerce_list_shared(value, field_name, source, AuthorityError)
 
 
 def extract_authority(path: str, text: str) -> AuthorityRecord | None:
@@ -353,17 +323,8 @@ def build_index_from_records(records: Iterable[AuthorityRecord]) -> CanonicalInd
 
 
 def iter_markdown_files(root: str) -> Iterable[str]:
-    """Yield repo-relative paths of all markdown files under root.
-
-    Skips .git, .obsidian, and node_modules.
-    """
-    skip_dirs = {".git", ".obsidian", "node_modules", "_fit"}
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
-        for name in filenames:
-            if name.endswith(".md"):
-                full = os.path.join(dirpath, name)
-                yield os.path.relpath(full, root).replace(os.sep, "/")
+    """Re-export of pkb_frontmatter.iter_markdown_files for back-compat."""
+    return _iter_markdown_files_shared(root)
 
 
 def build_full_index(

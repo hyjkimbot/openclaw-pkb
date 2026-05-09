@@ -80,6 +80,22 @@ superseded_by:
 
 The active key vocabulary lives at `.agent/index/canonical-keys.md`; the generated lookup map lives at `.agent/index/canonical.json`. Use `python3 scripts/pkb_authority.py lookup <key>` to resolve a decision to its current file. See `docs/canonical-authority-indexing.md` and `SKILL.md` workflow #5 for details.
 
+## Provenance vs. Authority
+
+A note can be **derived from** other notes (provenance) without being **authoritative for** any decision (authority). Provenance answers "what evidence produced this doc?" — distinct from "which doc should I obey?"
+
+Add document-level provenance to syntheses with frontmatter:
+
+```yaml
+source_notes:
+  - docs/sources/foo.md
+raw_sources:
+  - docs/sources/raw/foo.txt
+citation_status: cited
+```
+
+The schema is intentionally separate from authority: `canonical_for` and `supersedes` belong to authority (claims a note makes about itself); `source_notes` and `raw_sources` belong to provenance (relationships between this note and others). Use `python3 scripts/pkb_provenance.py audit` to scan and `python3 scripts/pkb_provenance.py candidates` to recommend likely synthesis candidates. See `docs/document-level-provenance-edges.md` and `SKILL.md` workflow #6 for details.
+
 ## Structured Logs vs. Notes
 Not everything belongs in a markdown note. **Time-series data** (meals, mood, workouts, expenses) should be stored as CSV files, not markdown tables:
 
