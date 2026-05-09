@@ -37,6 +37,17 @@ This directory contains the essential scripts and structure for a Personal Knowl
 - **Ingest**: Use the skill to save new notes to `docs/sources/`. The skill enforces frontmatter (`id`, `tags`, etc.).
 - **Refactor**: Use `scripts/refactor.py old.md new.md` to move files and update wikilinks automatically.
 - **Validate**: The skill runs `scripts/pkb-validate.py` before committing to ensure data integrity.
+- **Authority lookup**: Use `scripts/pkb_authority.py lookup <key>` to resolve "which document is authoritative for decision X?" — see `docs/canonical-authority-indexing.md`.
+
+### Optional: PyYAML for canonical authority indexing
+
+The authority indexing module (`pkb_authority.py`) requires PyYAML to parse frontmatter:
+
+```bash
+pip3 install pyyaml
+```
+
+If PyYAML is not installed, authority validation is silently skipped — the rest of the validator still works.
 
 ## Human Setup (The Viewer)
 

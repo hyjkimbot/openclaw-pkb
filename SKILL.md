@@ -1,7 +1,7 @@
 ---
 name: pkb
-version: 0.3.0
-description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, structured logging, and managing a Git-backed Obsidian vault.
+version: 0.4.0
+description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, structured logging, canonical authority resolution, and managing a Git-backed Obsidian vault.
 ---
 
 # PKB Ingest Workflow
@@ -45,6 +45,46 @@ This skill manages a local Obsidian vault backed by Git. It prioritizes data int
 - **Process:**
   1.  Run `python3 scripts/pkb-validate.py`.
   2.  Fix any errors (missing tags, bad frontmatter) before committing.
+
+### 5. Canonical Authority Resolution (`pkb:lookup`)
+**Goal:** Resolve "which document is authoritative for decision X?" without grep.
+
+For operational tasks ("before logging food, read the canonical diet target"), prefer the canonical index over filesystem search. Authority resolution and relevance search are different operations.
+
+```bash
+# Look up the canonical file for a key
+python3 scripts/pkb_authority.py lookup nutrition-targets
+# → docs/health/current-targets.md
+
+# Full rebuild of the index from frontmatter (run after merges or bulk edits)
+python3 scripts/pkb_authority.py audit
+```
+
+**Adding a new canonical key:**
+1. Edit `.agent/index/canonical-keys.md` and register the key under `## Active keys`.
+2. Add `canonical_for: <key>` to the frontmatter of the canonical doc.
+3. Commit both changes together. The validator regenerates `.agent/index/canonical.json` and stages it automatically.
+
+**Frontmatter authority fields:**
+```yaml
+status: current | draft | reviewed | stable | historical | superseded | deprecated | planning
+canonical_for:
+  - decision-key
+supersedes:
+  - docs/path/old.md
+superseded_by:
+  - docs/path/newer.md
+authority_scope: optional/free-text  # only when path is insufficient
+owner: alice
+updated: YYYY-MM-DD
+```
+
+The validator (`pkb-validate.py`) integrates authority checks automatically when `pkb_authority.py` is present. It runs a full frontmatter rebuild on every commit that touches markdown or `canonical.json`, treating that rebuild as ground truth:
+- `canonical.json` is generated; do not hand-edit. The validator rejects staged blobs that don't match a fresh rebuild.
+- `canonical_for` keys must be unique (collision = build error) and registered in `canonical-keys.md`.
+- Status field is type-validated; unknown values produce non-fatal warnings during audit.
+
+See `docs/canonical-authority-indexing.md` for the full design.
 
 ## External Services (Optional)
 

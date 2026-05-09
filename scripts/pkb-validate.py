@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
-import os, re, sys, subprocess
+import json, os, re, sys, subprocess
 
 # Generic version of pkb-validate.py
 # Removed strict path allow-lists for broader compatibility, but kept frontmatter checks.
 
 BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+CANONICAL_INDEX_PATH = os.path.join(BASE, '.agent', 'index', 'canonical.json')
+CANONICAL_VOCAB_PATH = os.path.join(BASE, '.agent', 'index', 'canonical-keys.md')
+
+# Authority indexing is optional — only loads if the module is present.
+sys.path.insert(0, os.path.dirname(__file__))
+try:
+    from pkb_authority import (  # noqa: E402
+        AuthorityError,
+        CanonicalIndex,
+        build_full_index,
+        load_active_keys,
+        load_index,
+        validate_against_vocabulary,
+        write_index,
+    )
+    AUTHORITY_AVAILABLE = True
+except ImportError:
+    AUTHORITY_AVAILABLE = False
 
 frontmatter_re = re.compile(r'^---\n(.*?)\n---\n', re.S)
 required_fm = {'id','created','tags'}
@@ -26,9 +44,33 @@ except Exception as e:
     print(f'PKB validate: warning - git check failed: {e}')
     sys.exit(0)
 
+# Frontmatter enforcement is scoped to vault note files. Control-plane
+# directories and repository meta files (README, SKILL, ontology, etc.)
+# are not Zettelkasten atoms and do not need id/created/tags.
+FRONTMATTER_SKIP_PREFIXES = ('.agent/',)
+FRONTMATTER_SKIP_FILES = {
+    'README.md',
+    'SKILL.md',
+    'ontology.md',
+    'CHANGELOG.md',
+}
+
+
+def _frontmatter_required(rel_path: str) -> bool:
+    if any(rel_path.startswith(p) for p in FRONTMATTER_SKIP_PREFIXES):
+        return False
+    if rel_path in FRONTMATTER_SKIP_FILES:
+        return False
+    # Top-level docs/ design notes are also exempt; only files in
+    # subdirectories under docs/ are treated as vault notes.
+    if rel_path.startswith('docs/') and '/' not in rel_path[len('docs/'):]:
+        return False
+    return True
+
+
 # validate format for markdown files
 for f in files:
-    if f.endswith('.md'):
+    if f.endswith('.md') and _frontmatter_required(f):
         p = os.path.join(BASE, f)
         if not os.path.exists(p):
             continue # deleted file
@@ -141,6 +183,75 @@ for csv_path, schema in csv_files_to_validate:
     except csv.Error as e:
         print(f"PKB validate: {csv_path} CSV parse error: {e}")
         sys.exit(1)
+
+# --- Canonical authority indexing (optional) ---
+# Activates when scripts/pkb_authority.py is present. Triggers on commits
+# that touch markdown or canonical.json. Strategy: full frontmatter
+# rebuild as ground truth; staged canonical.json blob must match it.
+if AUTHORITY_AVAILABLE:
+    md_changed = [f for f in files if f.endswith('.md')]
+    rel_index = os.path.relpath(CANONICAL_INDEX_PATH, BASE)
+    index_staged = rel_index in files
+
+    if md_changed or index_staged:
+        try:
+            rebuilt, fm_errors = build_full_index(BASE)
+        except AuthorityError as exc:
+            print(f"PKB validate: authority error during rebuild: {exc}")
+            sys.exit(1)
+        if fm_errors:
+            print('PKB validate: authority frontmatter errors block index update:')
+            for rel, msg in fm_errors:
+                print(f"  {rel}: {msg}")
+            sys.exit(1)
+
+        active_keys = load_active_keys(CANONICAL_VOCAB_PATH)
+        if active_keys is not None:
+            try:
+                validate_against_vocabulary(rebuilt.records.values(), active_keys)
+            except AuthorityError as exc:
+                print(f"PKB validate: {exc}")
+                sys.exit(1)
+
+        if index_staged:
+            try:
+                blob = subprocess.check_output(
+                    ['git', 'show', f':{rel_index}'],
+                    cwd=BASE,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                print(f"PKB validate: cannot read staged blob for {rel_index}")
+                sys.exit(1)
+            blob_text = blob.decode('utf-8')
+            staged_entries = json.loads(blob_text) if blob_text.strip() else {}
+            if staged_entries != rebuilt.entries:
+                print('PKB validate: staged canonical.json does not match a '
+                      'frontmatter rebuild (do not hand-edit; run '
+                      '`python3 scripts/pkb_authority.py audit` to regenerate):')
+                staged_keys = set(staged_entries)
+                rebuilt_keys = set(rebuilt.entries)
+                for key in sorted(staged_keys - rebuilt_keys):
+                    print(f"  in staged but not rebuild: {key} -> "
+                          f"{staged_entries[key]}")
+                for key in sorted(rebuilt_keys - staged_keys):
+                    print(f"  in rebuild but not staged: {key} -> "
+                          f"{rebuilt.entries[key]}")
+                for key in sorted(staged_keys & rebuilt_keys):
+                    if staged_entries[key] != rebuilt.entries[key]:
+                        print(f"  {key}: staged={staged_entries[key]} "
+                              f"rebuild={rebuilt.entries[key]}")
+                sys.exit(1)
+        else:
+            on_disk = load_index(CANONICAL_INDEX_PATH)
+            if on_disk.entries != rebuilt.entries:
+                write_index(rebuilt, CANONICAL_INDEX_PATH)
+                try:
+                    subprocess.check_call(['git', 'add', rel_index], cwd=BASE)
+                except subprocess.CalledProcessError as exc:
+                    print(f"PKB validate: failed to stage updated {rel_index}: "
+                          f"{exc}")
+                    sys.exit(1)
 
 print('PKB validate: OK')
 sys.exit(0)

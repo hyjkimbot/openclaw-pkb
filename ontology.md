@@ -58,6 +58,28 @@ source: [URL or Citation]
 ---
 ```
 
+## Authority vs. Relevance
+
+A note can be **relevant** to a topic (it discusses nutrition) without being **authoritative** on it (it is the current operating target). Search returns relevance; canonical authority returns the source of truth.
+
+Mark a note as canonical with frontmatter:
+
+```yaml
+status: current
+canonical_for:
+  - nutrition-targets
+```
+
+When older versions of a decision exist, link them explicitly:
+
+```yaml
+status: superseded
+superseded_by:
+  - docs/health/current-targets.md
+```
+
+The active key vocabulary lives at `.agent/index/canonical-keys.md`; the generated lookup map lives at `.agent/index/canonical.json`. Use `python3 scripts/pkb_authority.py lookup <key>` to resolve a decision to its current file. See `docs/canonical-authority-indexing.md` and `SKILL.md` workflow #5 for details.
+
 ## Structured Logs vs. Notes
 Not everything belongs in a markdown note. **Time-series data** (meals, mood, workouts, expenses) should be stored as CSV files, not markdown tables:
 
