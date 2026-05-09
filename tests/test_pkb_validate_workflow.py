@@ -32,12 +32,13 @@ class ValidatorWorkflowTests(unittest.TestCase):
         scripts_dir = os.path.join(self.tmp, "scripts")
         os.makedirs(scripts_dir)
         shutil.copy(VALIDATOR, os.path.join(scripts_dir, "pkb-validate.py"))
-        # Copy authority module if present so authority block runs too
-        authority_src = os.path.join(REPO_ROOT, "scripts", "pkb_authority.py")
-        if os.path.exists(authority_src):
-            shutil.copy(
-                authority_src, os.path.join(scripts_dir, "pkb_authority.py")
-            )
+        # Copy any helper modules the validator imports so optional
+        # features (authority, provenance, shared frontmatter parsing)
+        # can run inside the temp repo.
+        for name in ("pkb_frontmatter.py", "pkb_authority.py", "pkb_provenance.py"):
+            src = os.path.join(REPO_ROOT, "scripts", name)
+            if os.path.exists(src):
+                shutil.copy(src, os.path.join(scripts_dir, name))
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -94,6 +95,27 @@ class ValidatorWorkflowTests(unittest.TestCase):
             rc, 0, "expected failure for vault note without frontmatter"
         )
         self.assertIn("missing frontmatter", out)
+
+    def test_provenance_dangling_target_warns_but_does_not_block(self):
+        # A doc with provenance metadata pointing at a non-existent target
+        # should produce a warning but not fail the commit.
+        self._write(
+            "docs/sources/has-bad-prov.md",
+            "---\n"
+            "id: has-bad-prov\n"
+            "created: 2026-05-09\n"
+            "tags: [type/source, status/draft]\n"
+            "source_notes:\n"
+            "  - docs/sources/does-not-exist.md\n"
+            "citation_status: cited\n"
+            "---\n"
+            "body\n",
+        )
+        self._stage("docs/sources/has-bad-prov.md")
+        rc, out = self._run_validator()
+        self.assertEqual(rc, 0, f"provenance warnings should not block, got rc={rc}")
+        self.assertIn("provenance warning", out)
+        self.assertIn("does-not-exist.md", out)
 
 
 if __name__ == "__main__":
