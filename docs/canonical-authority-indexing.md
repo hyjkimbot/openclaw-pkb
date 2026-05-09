@@ -15,8 +15,8 @@ A lightweight authority layer over the PKB:
 
 1. Put authority claims in YAML frontmatter, not prose.
 2. Maintain a small generated canonical-key index for fast runtime lookup.
-3. Validate changed files incrementally against that index on every commit.
-4. Run occasional full reconciliation scans as an audit path.
+3. Validate every commit against a fresh frontmatter rebuild treated as ground truth.
+4. Reject hand-edits to the generated index by comparing the staged blob to that rebuild.
 
 This turns the PKB graph from "many related notes" into a more explicit model of **current state, historical context, open questions, and superseded decisions**.
 

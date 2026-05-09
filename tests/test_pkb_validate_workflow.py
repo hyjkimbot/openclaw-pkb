@@ -1,0 +1,100 @@
+"""Smoke tests for the documented validator workflow.
+
+Runs scripts/pkb-validate.py against staged file scenarios in a
+temporary git repo. These guard the SKILL.md "add a canonical key"
+workflow and ensure control-plane / meta files don't trip the
+frontmatter check.
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+VALIDATOR = os.path.join(REPO_ROOT, "scripts", "pkb-validate.py")
+
+
+class ValidatorWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        # Initialize a real git repo and copy the validator + module in
+        subprocess.check_call(["git", "init", "-q", self.tmp])
+        subprocess.check_call(
+            ["git", "-C", self.tmp, "config", "user.email", "test@example.com"]
+        )
+        subprocess.check_call(
+            ["git", "-C", self.tmp, "config", "user.name", "Test"]
+        )
+        scripts_dir = os.path.join(self.tmp, "scripts")
+        os.makedirs(scripts_dir)
+        shutil.copy(VALIDATOR, os.path.join(scripts_dir, "pkb-validate.py"))
+        # Copy authority module if present so authority block runs too
+        authority_src = os.path.join(REPO_ROOT, "scripts", "pkb_authority.py")
+        if os.path.exists(authority_src):
+            shutil.copy(
+                authority_src, os.path.join(scripts_dir, "pkb_authority.py")
+            )
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def _write(self, rel: str, text: str) -> None:
+        full = os.path.join(self.tmp, rel)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def _stage(self, *rels: str) -> None:
+        subprocess.check_call(["git", "-C", self.tmp, "add", *rels])
+
+    def _run_validator(self) -> tuple[int, str]:
+        result = subprocess.run(
+            [sys.executable, "scripts/pkb-validate.py"],
+            cwd=self.tmp,
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode, result.stdout + result.stderr
+
+    def test_canonical_keys_md_does_not_require_frontmatter(self):
+        self._write(
+            ".agent/index/canonical-keys.md",
+            "# Canonical Key Vocabulary\n\n## Active keys\n\n- `example` — placeholder\n",
+        )
+        self._stage(".agent/index/canonical-keys.md")
+        rc, out = self._run_validator()
+        self.assertEqual(rc, 0, f"expected pass, got rc={rc}, output={out}")
+
+    def test_top_level_meta_files_do_not_require_frontmatter(self):
+        # A simulated SKILL.md update (real repos have non-vault frontmatter)
+        self._write(
+            "SKILL.md",
+            "---\nname: pkb\nversion: 0.4.0\ndescription: x\n---\n\n# PKB\n",
+        )
+        self._stage("SKILL.md")
+        rc, out = self._run_validator()
+        self.assertEqual(rc, 0, f"expected pass, got rc={rc}, output={out}")
+
+    def test_top_level_design_doc_does_not_require_frontmatter(self):
+        self._write("docs/canonical-authority-indexing.md", "# Design\n\nbody\n")
+        self._stage("docs/canonical-authority-indexing.md")
+        rc, out = self._run_validator()
+        self.assertEqual(rc, 0, f"expected pass, got rc={rc}, output={out}")
+
+    def test_subdir_doc_still_requires_frontmatter(self):
+        # Vault note files (under docs/<subdir>/) MUST still have frontmatter
+        self._write("docs/sources/no-frontmatter.md", "# Note without frontmatter\n")
+        self._stage("docs/sources/no-frontmatter.md")
+        rc, out = self._run_validator()
+        self.assertNotEqual(
+            rc, 0, "expected failure for vault note without frontmatter"
+        )
+        self.assertIn("missing frontmatter", out)
+
+
+if __name__ == "__main__":
+    unittest.main()

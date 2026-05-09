@@ -44,9 +44,33 @@ except Exception as e:
     print(f'PKB validate: warning - git check failed: {e}')
     sys.exit(0)
 
+# Frontmatter enforcement is scoped to vault note files. Control-plane
+# directories and repository meta files (README, SKILL, ontology, etc.)
+# are not Zettelkasten atoms and do not need id/created/tags.
+FRONTMATTER_SKIP_PREFIXES = ('.agent/',)
+FRONTMATTER_SKIP_FILES = {
+    'README.md',
+    'SKILL.md',
+    'ontology.md',
+    'CHANGELOG.md',
+}
+
+
+def _frontmatter_required(rel_path: str) -> bool:
+    if any(rel_path.startswith(p) for p in FRONTMATTER_SKIP_PREFIXES):
+        return False
+    if rel_path in FRONTMATTER_SKIP_FILES:
+        return False
+    # Top-level docs/ design notes are also exempt; only files in
+    # subdirectories under docs/ are treated as vault notes.
+    if rel_path.startswith('docs/') and '/' not in rel_path[len('docs/'):]:
+        return False
+    return True
+
+
 # validate format for markdown files
 for f in files:
-    if f.endswith('.md'):
+    if f.endswith('.md') and _frontmatter_required(f):
         p = os.path.join(BASE, f)
         if not os.path.exists(p):
             continue # deleted file
