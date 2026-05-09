@@ -322,6 +322,35 @@ def build_index_from_records(records: Iterable[AuthorityRecord]) -> CanonicalInd
     return index
 
 
+def build_index_from_markdown_texts(
+    markdown_texts: dict[str, str],
+) -> tuple[CanonicalIndex, list[tuple[str, str]]]:
+    """Build the canonical index from an explicit markdown snapshot.
+
+    `markdown_texts` maps repo-relative markdown paths to file contents. This
+    is useful for pre-commit validation, where the source of truth is the git
+    index (the staged snapshot), not the working tree.
+    """
+    records: list[AuthorityRecord] = []
+    errors: list[tuple[str, str]] = []
+    for rel, text in sorted(markdown_texts.items()):
+        try:
+            rec = extract_authority(rel, text)
+        except yaml.YAMLError as exc:
+            # Only surface YAML errors when the file looks like it intends
+            # to claim authority. Legacy unrelated YAML issues stay quiet.
+            if has_authority_intent(text):
+                errors.append((rel, str(exc)))
+            continue
+        except AuthorityError as exc:
+            errors.append((rel, str(exc)))
+            continue
+        if rec is not None:
+            records.append(rec)
+    index = build_index_from_records(records)
+    return index, errors
+
+
 def iter_markdown_files(root: str) -> Iterable[str]:
     """Re-export of pkb_frontmatter.iter_markdown_files for back-compat."""
     return _iter_markdown_files_shared(root)
