@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-import json, os, re, sys, subprocess
+import collections
+import csv
+import io
+import json
+import os
+import re
+import subprocess
+import sys
 
-# Generic version of pkb-validate.py
-# Removed strict path allow-lists for broader compatibility, but kept frontmatter checks.
+# Generic version of pkb-validate.py.
+# Validates the git index (the staged snapshot) so pre-commit behavior matches
+# what will actually be committed, even when the working tree has diverged.
 
 BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+RULES_PATH = os.path.join(BASE, '.agent', 'pkb-rules.json')
 CANONICAL_INDEX_PATH = os.path.join(BASE, '.agent', 'index', 'canonical.json')
 CANONICAL_VOCAB_PATH = os.path.join(BASE, '.agent', 'index', 'canonical-keys.md')
 
@@ -15,8 +24,10 @@ try:
         AuthorityError,
         CanonicalIndex,
         build_full_index,
+        build_index_from_markdown_texts,
         load_active_keys,
         load_index,
+        parse_active_keys,
         validate_against_vocabulary,
         write_index,
     )
@@ -25,24 +36,61 @@ except ImportError:
     AUTHORITY_AVAILABLE = False
 
 frontmatter_re = re.compile(r'^---\n(.*?)\n---\n', re.S)
-required_fm = {'id','created','tags'}
+required_fm = {'id', 'created', 'tags'}
 
 # ontology prefixes (customize these as needed)
 ONTO_PREFIXES = ('type/', 'status/', 'project/', 'person/', 'area/')
 
-# get staged files
+
+def _git_output(args, *, binary=False):
+    out = subprocess.check_output(args, cwd=BASE, stderr=subprocess.DEVNULL)
+    if binary:
+        return out
+    return out.decode('utf-8')
+
+
+def _git_zlist(args):
+    return [p for p in _git_output(args).split('\0') if p]
+
+
+def _git_show_index_text(rel_path):
+    """Return a file's git-index text, or None when absent from the index."""
+    try:
+        blob = _git_output(['git', 'show', f':{rel_path}'], binary=True)
+    except subprocess.CalledProcessError:
+        return None
+    return blob.decode('utf-8')
+
+
+# get staged files and the full index file list
 try:
     # Check if we are inside a git repo
     if not os.path.exists(os.path.join(BASE, '.git')):
         print("PKB validate: Not a git repository. Skipping checks.")
         sys.exit(0)
 
-    out = subprocess.check_output(['git','diff','--cached','--name-only'], cwd=BASE).decode().strip()
-    files = [f for f in out.split('\n') if f]
+    files = _git_zlist(['git', 'diff', '--cached', '--name-only', '-z'])
+    index_files = _git_zlist(['git', 'ls-files', '-z'])
 except Exception as e:
     # If git fails, just warn and exit
     print(f'PKB validate: warning - git check failed: {e}')
     sys.exit(0)
+
+index_file_set = set(index_files)
+
+
+def index_text(rel_path):
+    return _git_show_index_text(rel_path)
+
+
+rules = {}
+if os.path.exists(RULES_PATH):
+    try:
+        with open(RULES_PATH, 'r', encoding='utf-8') as fh:
+            rules = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"PKB validate: cannot read {RULES_PATH}: {exc}")
+        sys.exit(1)
 
 # Frontmatter enforcement is scoped to vault note files. Control-plane
 # directories and repository meta files (README, SKILL, ontology, etc.)
@@ -71,24 +119,18 @@ def _frontmatter_required(rel_path: str) -> bool:
 # validate format for markdown files
 for f in files:
     if f.endswith('.md') and _frontmatter_required(f):
-        p = os.path.join(BASE, f)
-        if not os.path.exists(p):
-            continue # deleted file
+        txt = index_text(f)
+        if txt is None:
+            continue  # deleted file
 
-        try:
-            txt = open(p,'r',encoding='utf-8').read()
-        except Exception as e:
-            print(f"PKB validate: cannot read {f}: {e}")
-            sys.exit(1)
-            
         m = frontmatter_re.match(txt)
         if not m:
             print(f"PKB validate: missing frontmatter in {f}")
             sys.exit(1)
-            
+
         fm = m.group(1)
         fields = set(re.findall(r'^(\w+)\s*:', fm, re.M))
-        
+
         # Check required fields
         missing = required_fm - fields
         if missing:
@@ -101,28 +143,26 @@ for f in files:
             tags = [t.strip() for t in tags_m.group(1).split(',') if t.strip()]
             if not any(t.startswith(ONTO_PREFIXES) for t in tags):
                 print(f"PKB validate: tags in {f} should include an ontology prefix (e.g. type/, status/)")
-                # Warning only for starter kit
-                # sys.exit(1) 
+                sys.exit(1)
 
 # --- CSV log validation ---
-# To enforce schemas on your CSV logs, add entries to CSV_DIR_SCHEMAS below.
-# Each key is a directory prefix; any staged .csv file under it will be validated.
+# To enforce schemas on your CSV logs, add entries under `csvSchemas` in
+# .agent/pkb-rules.json. Each key is a directory prefix; any staged .csv file
+# under it will be validated. Example:
 #
-# Example:
-#   'docs/health/nutrition-log/': {
-#       'columns': ['date','meal','intake','cal_lo','cal_hi','status'],
-#       'required': ['date','meal','intake'],
-#       'integers': ['cal_lo','cal_hi'],
-#       'numbers': [],
-#       'enums': {'status': {'confirmed','tentative','updated',''}},
+# {
+#   "csvSchemas": {
+#     "docs/health/nutrition-log/": {
+#       "columns": ["date", "meal", "intake", "cal_lo", "cal_hi", "status"],
+#       "required": ["date", "meal", "intake"],
+#       "integers": ["cal_lo", "cal_hi"],
+#       "numbers": [],
+#       "enums": {"status": ["confirmed", "tentative", "updated", ""]}
+#     }
 #   }
+# }
 
-import csv
-
-CSV_DIR_SCHEMAS = {
-    # Add your log schemas here. Example commented out above.
-}
-
+CSV_DIR_SCHEMAS = rules.get('csvSchemas', {})
 DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 csv_files_to_validate = []
@@ -133,11 +173,11 @@ for f in files:
             break
 
 for csv_path, schema in csv_files_to_validate:
-    full = os.path.join(BASE, csv_path)
-    if not os.path.exists(full):
+    txt = index_text(csv_path)
+    if txt is None:
         continue
     try:
-        with open(full, 'r', encoding='utf-8', newline='') as fh:
+        with io.StringIO(txt, newline='') as fh:
             reader = csv.DictReader(fh)
             header = reader.fieldnames or []
 
@@ -146,7 +186,7 @@ for csv_path, schema in csv_files_to_validate:
                 sys.exit(1)
 
             for i, row in enumerate(reader, start=2):
-                if all(v.strip() == '' for v in row.values()):
+                if all((v or '').strip() == '' for v in row.values()):
                     continue
 
                 for col in schema.get('required', []):
@@ -176,7 +216,7 @@ for csv_path, schema in csv_files_to_validate:
 
                 for col, allowed_vals in schema.get('enums', {}).items():
                     val = row.get(col, '').strip()
-                    if val and val not in allowed_vals:
+                    if val and val not in set(allowed_vals):
                         print(f"PKB validate: {csv_path} row {i}: '{col}' must be one of {allowed_vals}, got '{val}'")
                         sys.exit(1)
 
@@ -184,20 +224,158 @@ for csv_path, schema in csv_files_to_validate:
         print(f"PKB validate: {csv_path} CSV parse error: {e}")
         sys.exit(1)
 
+# --- Markdown link validation for staged markdown files ---
+# Validate staged content against the git index file list, not the working tree.
+PATHLIKE_EXTS = ('.md', '.txt', '.csv', '.json', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.html')
+WIKILINK_RE = re.compile(r'\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]')
+MDLINK_RE = re.compile(r'\[[^\]]+\]\(([^)]+)\)')
+
+
+def _norm(rel_path: str) -> str:
+    return os.path.normpath(rel_path).replace('\\', '/').lstrip('./')
+
+
+def _resolve_path_candidates(src_rel: str, target: str, exts_if_missing=('.md',)):
+    t = _norm(target)
+    if not t:
+        return []
+
+    has_ext = bool(os.path.splitext(t)[1])
+    variants = [t] if has_ext else [t + ext for ext in exts_if_missing]
+
+    src_dir = os.path.dirname(src_rel)
+    candidates = []
+    for v in variants:
+        for rel_try in (_norm(v), _norm(os.path.join(src_dir, v))):
+            hit = all_files_lut.get(rel_try.lower())
+            if hit:
+                candidates.append(hit)
+
+    out = []
+    for c in candidates:
+        if c not in out:
+            out.append(c)
+    return out
+
+
+all_files_rel = [_norm(rel) for rel in index_files if not rel.startswith(('.git/', '_fit/', '.obsidian/'))]
+all_files_lut = {f.lower(): f for f in all_files_rel}
+stem_index = collections.defaultdict(list)
+for rel in all_files_rel:
+    stem = os.path.splitext(os.path.basename(rel))[0].lower()
+    stem_index[stem].append(rel)
+
+unresolved = []
+ambiguous = []
+for src_rel in [f for f in files if f.endswith('.md')]:
+    txt = index_text(src_rel)
+    if txt is None:
+        continue
+
+    for token in WIKILINK_RE.findall(txt):
+        tok = token.strip()
+        if not tok:
+            continue
+        if '/' in tok:
+            cands = _resolve_path_candidates(src_rel, tok, exts_if_missing=PATHLIKE_EXTS)
+        else:
+            cands = list(dict.fromkeys(stem_index.get(tok.lower(), [])))
+        if len(cands) == 0:
+            unresolved.append((src_rel, tok))
+        elif len(cands) > 1:
+            ambiguous.append((src_rel, tok, cands))
+
+    for href in MDLINK_RE.findall(txt):
+        raw = href.strip().split('#', 1)[0].strip()
+        if not raw or raw.startswith(('http://', 'https://', 'mailto:')):
+            continue
+        cands = _resolve_path_candidates(src_rel, raw, exts_if_missing=('.md',))
+        if len(cands) == 0:
+            unresolved.append((src_rel, raw))
+        elif len(cands) > 1:
+            ambiguous.append((src_rel, raw, cands))
+
+if unresolved:
+    print('PKB validate: unresolved internal links found:')
+    for src, tgt in unresolved[:20]:
+        print(f"  - {src} -> {tgt}")
+    if len(unresolved) > 20:
+        print(f"  ... and {len(unresolved) - 20} more")
+    sys.exit(1)
+
+if ambiguous:
+    print('PKB validate: ambiguous links found (use explicit path):')
+    for src, tgt, cands in ambiguous[:20]:
+        preview = ', '.join(cands[:3])
+        extra = '' if len(cands) <= 3 else f" (+{len(cands) - 3} more)"
+        print(f"  - {src} -> {tgt} matches [{preview}{extra}]")
+    if len(ambiguous) > 20:
+        print(f"  ... and {len(ambiguous) - 20} more")
+    sys.exit(1)
+
 # --- Canonical authority indexing (optional) ---
 # Activates when scripts/pkb_authority.py is present. Triggers on commits
-# that touch markdown or canonical.json. Strategy: full frontmatter
-# rebuild as ground truth; staged canonical.json blob must match it.
+# that touch markdown or canonical.json. Strategy: rebuild from staged
+# markdown as ground truth; staged canonical.json blob must match it.
 if AUTHORITY_AVAILABLE:
+    def _build_staged_authority_index():
+        try:
+            raw = _git_output(['git', 'ls-files', '-z', '--', '*.md'])
+        except subprocess.CalledProcessError:
+            return build_full_index(BASE)
+
+        markdown_texts = {}
+        errors = []
+        for rel in [p for p in raw.split('\0') if p]:
+            text = index_text(rel)
+            if text is None:
+                errors.append((rel, 'cannot read staged blob'))
+            else:
+                markdown_texts[rel] = text
+        try:
+            index, parse_errors = build_index_from_markdown_texts(markdown_texts)
+        except AuthorityError:
+            raise
+        return index, errors + parse_errors
+
+    def _load_staged_active_keys(rel_path):
+        text = index_text(rel_path)
+        if text is None:
+            return load_active_keys(os.path.join(BASE, rel_path))
+        return parse_active_keys(text)
+
+    def _load_staged_index(rel_path):
+        text = index_text(rel_path)
+        if text is None:
+            return None
+        if not text.strip():
+            return CanonicalIndex()
+        entries = json.loads(text)
+        if not isinstance(entries, dict):
+            print(f"PKB validate: staged {rel_path} is not a JSON object")
+            sys.exit(1)
+        return CanonicalIndex(entries=entries)
+
+    def _print_diff(label_a, entries_a, label_b, entries_b):
+        keys_a = set(entries_a)
+        keys_b = set(entries_b)
+        for key in sorted(keys_a - keys_b):
+            print(f"  in {label_a} but not {label_b}: {key} -> {entries_a[key]}")
+        for key in sorted(keys_b - keys_a):
+            print(f"  in {label_b} but not {label_a}: {key} -> {entries_b[key]}")
+        for key in sorted(keys_a & keys_b):
+            if entries_a[key] != entries_b[key]:
+                print(f"  {key}: {label_a}={entries_a[key]} {label_b}={entries_b[key]}")
+
     md_changed = [f for f in files if f.endswith('.md')]
     rel_index = os.path.relpath(CANONICAL_INDEX_PATH, BASE)
     index_staged = rel_index in files
 
     if md_changed or index_staged:
         try:
-            rebuilt, fm_errors = build_full_index(BASE)
+            rebuilt, fm_errors = _build_staged_authority_index()
         except AuthorityError as exc:
-            print(f"PKB validate: authority error during rebuild: {exc}")
+            print(f"PKB validate: authority error during staged rebuild: {exc}")
             sys.exit(1)
         if fm_errors:
             print('PKB validate: authority frontmatter errors block index update:')
@@ -205,7 +383,7 @@ if AUTHORITY_AVAILABLE:
                 print(f"  {rel}: {msg}")
             sys.exit(1)
 
-        active_keys = load_active_keys(CANONICAL_VOCAB_PATH)
+        active_keys = _load_staged_active_keys(os.path.relpath(CANONICAL_VOCAB_PATH, BASE))
         if active_keys is not None:
             try:
                 validate_against_vocabulary(rebuilt.records.values(), active_keys)
@@ -214,33 +392,15 @@ if AUTHORITY_AVAILABLE:
                 sys.exit(1)
 
         if index_staged:
-            try:
-                blob = subprocess.check_output(
-                    ['git', 'show', f':{rel_index}'],
-                    cwd=BASE,
-                    stderr=subprocess.DEVNULL,
-                )
-            except subprocess.CalledProcessError:
+            staged_index = _load_staged_index(rel_index)
+            if staged_index is None:
                 print(f"PKB validate: cannot read staged blob for {rel_index}")
                 sys.exit(1)
-            blob_text = blob.decode('utf-8')
-            staged_entries = json.loads(blob_text) if blob_text.strip() else {}
-            if staged_entries != rebuilt.entries:
+            if staged_index.entries != rebuilt.entries:
                 print('PKB validate: staged canonical.json does not match a '
-                      'frontmatter rebuild (do not hand-edit; run '
+                      'staged-frontmatter rebuild (do not hand-edit; run '
                       '`python3 scripts/pkb_authority.py audit` to regenerate):')
-                staged_keys = set(staged_entries)
-                rebuilt_keys = set(rebuilt.entries)
-                for key in sorted(staged_keys - rebuilt_keys):
-                    print(f"  in staged but not rebuild: {key} -> "
-                          f"{staged_entries[key]}")
-                for key in sorted(rebuilt_keys - staged_keys):
-                    print(f"  in rebuild but not staged: {key} -> "
-                          f"{rebuilt.entries[key]}")
-                for key in sorted(staged_keys & rebuilt_keys):
-                    if staged_entries[key] != rebuilt.entries[key]:
-                        print(f"  {key}: staged={staged_entries[key]} "
-                              f"rebuild={rebuilt.entries[key]}")
+                _print_diff('staged', staged_index.entries, 'staged rebuild', rebuilt.entries)
                 sys.exit(1)
         else:
             on_disk = load_index(CANONICAL_INDEX_PATH)
@@ -249,8 +409,7 @@ if AUTHORITY_AVAILABLE:
                 try:
                     subprocess.check_call(['git', 'add', rel_index], cwd=BASE)
                 except subprocess.CalledProcessError as exc:
-                    print(f"PKB validate: failed to stage updated {rel_index}: "
-                          f"{exc}")
+                    print(f"PKB validate: failed to stage updated {rel_index}: {exc}")
                     sys.exit(1)
 
 print('PKB validate: OK')
