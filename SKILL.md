@@ -1,7 +1,7 @@
 ---
 name: pkb
-version: 0.4.0
-description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, structured logging, canonical authority resolution, and managing a Git-backed Obsidian vault.
+version: 0.5.0
+description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, structured logging, canonical authority resolution, document-level provenance edges, and managing a Git-backed Obsidian vault.
 ---
 
 # PKB Ingest Workflow
@@ -85,6 +85,46 @@ The validator (`pkb-validate.py`) integrates authority checks automatically when
 - Status field is type-validated; unknown values produce non-fatal warnings during audit.
 
 See `docs/canonical-authority-indexing.md` for the full design.
+
+### 6. Document-Level Provenance (`pkb:provenance`)
+**Goal:** Record what evidence produced a synthesized note so future agents don't have to rediscover the dependency chain.
+
+Provenance and canonical authority are different operations on different axes:
+- **Authority** answers *"which doc should I obey?"* — owned by `pkb_authority`, fields: `status`, `canonical_for`, `supersedes`, `superseded_by`.
+- **Provenance** answers *"what evidence produced this?"* — owned by `pkb_provenance`, fields: `source_notes`, `raw_sources`, `citation_status`.
+
+**v1 is opt-in.** Don't migrate the long tail of pre-existing notes. Add provenance frontmatter to a synthesis-typed note when you want the dependency edges captured; the validator surfaces issues on those notes only and never blocks a commit on missing provenance.
+
+**Frontmatter fields:**
+
+```yaml
+source_notes:
+  - docs/sources/foo.md
+  - docs/sources/bar.md
+raw_sources:
+  - docs/sources/raw/foo.txt
+citation_status: cited # cited | raw-only | needs-review | self-authored
+```
+
+**CLI:**
+
+```bash
+# Full vault scan + write the provenance index
+python3 scripts/pkb_provenance.py audit
+
+# Suggest notes that look like syntheses but lack provenance metadata
+python3 scripts/pkb_provenance.py candidates
+
+# List source notes that no synthesis cites downstream
+python3 scripts/pkb_provenance.py uncited-sources
+
+# List notes with raw_sources but no processed source_notes
+python3 scripts/pkb_provenance.py raw-only
+```
+
+**Validator behavior:** when `pkb_provenance.py` is importable, the validator reads each staged markdown file with provenance fields and warns on dangling `source_notes` / `raw_sources` targets. Warnings only — never blocking, never coercing.
+
+See `docs/document-level-provenance-edges.md` for the full design.
 
 ## External Services (Optional)
 

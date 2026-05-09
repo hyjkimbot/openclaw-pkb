@@ -38,6 +38,7 @@ This directory contains the essential scripts and structure for a Personal Knowl
 - **Refactor**: Use `scripts/refactor.py old.md new.md` to move files and update wikilinks automatically.
 - **Validate**: The skill runs `scripts/pkb-validate.py` before committing to ensure data integrity.
 - **Authority lookup**: Use `scripts/pkb_authority.py lookup <key>` to resolve "which document is authoritative for decision X?" — see `docs/canonical-authority-indexing.md`.
+- **Provenance**: Use `scripts/pkb_provenance.py audit` to record dependency edges between syntheses and their source notes — see `docs/document-level-provenance-edges.md`.
 
 ### Optional: PyYAML for canonical authority indexing
 
