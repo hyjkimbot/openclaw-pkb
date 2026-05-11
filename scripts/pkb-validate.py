@@ -243,10 +243,17 @@ for csv_path, schema in csv_files_to_validate:
 PATHLIKE_EXTS = ('.md', '.txt', '.csv', '.json', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.html')
 WIKILINK_RE = re.compile(r'\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]')
 MDLINK_RE = re.compile(r'\[[^\]]+\]\(([^)]+)\)')
+FENCED_CODE_RE = re.compile(r'^```.*?^```', re.M | re.S)
+INLINE_CODE_RE = re.compile(r'`[^`\n]*`')
 
 
 def _norm(rel_path: str) -> str:
     return os.path.normpath(rel_path).replace('\\', '/').lstrip('./')
+
+
+def _strip_markdown_code(txt: str) -> str:
+    txt = FENCED_CODE_RE.sub('', txt)
+    return INLINE_CODE_RE.sub('', txt)
 
 
 def _resolve_path_candidates(src_rel: str, target: str, exts_if_missing=('.md',)):
@@ -285,6 +292,7 @@ for src_rel in [f for f in files if f.endswith('.md')]:
     txt = index_text(src_rel)
     if txt is None:
         continue
+    txt = _strip_markdown_code(txt)
 
     for token in WIKILINK_RE.findall(txt):
         tok = token.strip()

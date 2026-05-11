@@ -181,6 +181,24 @@ class PkbValidateStagedSnapshotTests(unittest.TestCase):
 
         self.assertValidatorFailsWith("unresolved internal links found")
 
+    def test_wikilinks_inside_code_spans_and_blocks_are_ignored(self) -> None:
+        self._write(
+            "docs/career/code-links.md",
+            "---\n"
+            "id: code-links\n"
+            "created: 2026-05-09\n"
+            "tags: [type/note]\n"
+            "---\n"
+            "# Code Links\n\n"
+            "This script updates all `[[NotARealNote]]` references.\n\n"
+            "```\n"
+            "[[AnotherFakeTarget]]\n"
+            "```\n",
+        )
+        self._run("git", "add", "docs/career/code-links.md")
+
+        self.assertValidatorPasses()
+
     def test_unstaged_worktree_only_breakage_with_clean_index_passes(self) -> None:
         self._write(
             "docs/health/nutrition-log/2026-03.csv",
