@@ -109,7 +109,7 @@ if os.path.exists(RULES_PATH):
 # Frontmatter enforcement is scoped to vault note files. Control-plane
 # directories and repository meta files (README, SKILL, ontology, etc.)
 # are not Zettelkasten atoms and do not need id/created/tags.
-FRONTMATTER_SKIP_PREFIXES = ('.agent/',)
+FRONTMATTER_SKIP_PREFIXES = ('.agent/', 'journal/')
 FRONTMATTER_SKIP_FILES = {
     'README.md',
     'SKILL.md',
