@@ -86,6 +86,12 @@ class ValidatorWorkflowTests(unittest.TestCase):
         rc, out = self._run_validator()
         self.assertEqual(rc, 0, f"expected pass, got rc={rc}, output={out}")
 
+    def test_journal_entry_does_not_require_frontmatter(self):
+        self._write("journal/2026-05-09.md", "\n- [09:00] foo (no frontmatter)\n")
+        self._stage("journal/2026-05-09.md")
+        rc, out = self._run_validator()
+        self.assertEqual(rc, 0, f"expected pass, got rc={rc}, output={out}")
+
     def test_subdir_doc_still_requires_frontmatter(self):
         # Vault note files (under docs/<subdir>/) MUST still have frontmatter
         self._write("docs/sources/no-frontmatter.md", "# Note without frontmatter\n")
