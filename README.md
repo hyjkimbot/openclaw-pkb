@@ -1,134 +1,73 @@
 # PKB Starter Kit
 
-<img src="assets/qr.png" align="right" width="150" alt="QR Code" />
+A local, Git-backed knowledge base for people and their agents. Version **0.6.0** adds practical capture and sync procedures plus an optional pre-commit gate. Markdown and CSV remain ordinary files; Obsidian, cloud storage, and remote Git are optional.
 
-This directory contains the essential scripts and structure for a Personal Knowledge Base (PKB) managed via Git and OpenClaw.
+## Start locally
 
-## Installation
-
-1.  **Clone the Repository**:
-    We recommend cloning this into your workspace root (e.g., `~/workspace/pkb`).
-    ```bash
-    git clone <your-repo-url> pkb
-    cd pkb
-    ```
-    *Note:* The skill expects the vault to be at `./pkb` relative to the agent's workspace. If you place it elsewhere, update the paths in `SKILL.md`.
-
-2.  **Initialize Structure**:
-    Create the folders: `docs/sources`, `mocs`, `scripts`.
-    
-    ```bash
-    mkdir -p docs/sources mocs scripts
-    ```
-
-3.  **Install Scripts**:
-    Copy `pkb-validate.py` and `refactor.py` into the `scripts/` folder.
-    Make them executable:
-    ```bash
-    chmod +x scripts/*.py
-    ```
-
-4.  **Install the Skill**:
-    Copy `SKILL.md` to your OpenClaw skills directory (e.g. `skills/pkb/SKILL.md`).
-    Update the paths in `SKILL.md` if necessary to point to your `pkb` location.
-
-## Usage
-
-- **Ingest**: Use the skill to save new notes to `docs/sources/`. The skill enforces frontmatter (`id`, `tags`, etc.).
-- **Refactor**: Use `scripts/refactor.py old.md new.md` to move files and update wikilinks automatically.
-- **Validate**: The skill runs `scripts/pkb-validate.py` before committing to ensure data integrity.
-- **Authority lookup**: Use `scripts/pkb_authority.py lookup <key>` to resolve "which document is authoritative for decision X?" — see `docs/canonical-authority-indexing.md`.
-- **Provenance**: Use `scripts/pkb_provenance.py audit` to record dependency edges between syntheses and their source notes — see `docs/document-level-provenance-edges.md`.
-
-### Optional: PyYAML for canonical authority indexing
-
-The authority indexing module (`pkb_authority.py`) requires PyYAML to parse frontmatter:
+Use this public repository as a template for a **private vault** before adding personal records. Alternatively, copy the starter into a local Git repository. Do not push personal notes back to the public template.
 
 ```bash
-pip3 install pyyaml
+git clone <your-vault-repo-url> pkb
+cd pkb
+mkdir -p docs/sources mocs journal
 ```
 
-If PyYAML is not installed, authority validation is silently skipped — the rest of the validator still works.
+Git and Python 3.10+ are required for the scripts. All scripts are already included; no separate copying step is needed. For canonical authority and provenance, install PyYAML into the Python environment used by `python3`:
 
-## Human Setup (The Viewer)
-
-To view and edit these notes pleasantly:
-
-1.  **Install Obsidian**: [https://obsidian.md](https://obsidian.md)
-2.  **Open the Vault**: Select "Open folder as vault" and choose your `pkb` directory.
-3.  **Install the Fit Plugin**:
-    *   Settings → Community Plugins → Turn on Community Plugins.
-    *   Browse → Search for **"Fit"** (by Joshua K. To).
-    *   Install & Enable.
-
-4.  **Install CSV Lite Plugin** (for structured logs):
-    *   Settings → Community Plugins → Browse → Search for **"CSV Lite"**.
-    *   Install & Enable.
-    *   *Why?* The PKB stores time-series data (nutrition, mood, workouts, etc.) as CSV files. CSV Lite renders them as readable tables inside Obsidian.
-
-5.  **Configure Fit** (optional — requires GitHub):
-    *   **Generate Token**: Go to GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic).
-    *   Generate a new token with **`repo`** scope. Copy it.
-    *   **Obsidian Settings**: Go to Fit settings.
-    *   Paste your **Personal Access Token**.
-    *   Enter your **GitHub Username**.
-    *   Enter your **Repository Name** (e.g., `openclaw-pkb`).
-    *   Enter your **Branch Name** (usually `main`).
-    *   *Why?* Fit handles Git synchronization (pull/push) more seamlessly for this workflow than Obsidian Git.
-    *   *Note:* If you skip this step, local Git still provides full version history — you just won't have remote backup/sync.
-    *   **⚠️ Security Note**: Fit stores your GitHub PAT in plaintext at `.obsidian/plugins/fit/data.json`. The included `.gitignore` excludes this file to prevent accidental token exposure. If your repo is public, verify this file is not tracked before pushing.
-
-6.  **Exclude Fit sync artifacts from Obsidian**:
-    *   The Fit plugin creates a `_fit/` directory containing a full mirror of your vault for sync state tracking. These duplicate markdown files will pollute Obsidian's graph view and search results.
-    *   Go to **Settings → Files & Links → Excluded Files** and add `_fit/`.
-    *   Alternatively, add `"userIgnoreFilters": ["_fit/"]` to `.obsidian/app.json`.
-    *   The included `.gitignore` also excludes `_fit/` from version control.
-
-7.  **External File Storage** (optional — for durable source documents):
-    *   Create a `pkb/` folder in Google Drive (or any cloud storage).
-    *   Use it to store original PDFs, scans, and other binary source documents that don't belong in Git.
-    *   The agent will link to these via `source_ref` in note frontmatter. See SKILL.md "Durable Source Storage" for details.
-    *   *Why?* Raw text transcriptions (OCR, copy-paste) are lossy. When exact numbers matter (lab results, financial docs), the original binary is the only reliable source of truth.
-
-## Agent Interaction
-
-This skill enables your AI agent to manage the vault. Here are the standard workflows you can use:
-
-### 1. Ingestion
-*   **User:** "Save this article to my PKB."
-*   **Agent:** Fetches content, creates `docs/sources/article-name.md`, adds frontmatter (`type/source`), and links it to relevant MOCs.
-
-### 2. Logging
-*   **User:** "Log a workout: Bench 135x10, felt easy."
-*   **Agent:** Appends a CSV row to the current month's file (e.g., `docs/exercise/workout-log/2026-03.csv`). See SKILL.md section 6 for the structured logging workflow.
-
-### 3. Refactoring
-*   **User:** "Rename the 'Project X' note to 'Project Y'."
-*   **Agent:** Runs `scripts/refactor.py` to move the file and **update all wikilinks** automatically.
-
-### 4. Querying
-*   **User:** "What have I saved about 'Bioinformatics'?"
-*   **Agent:** Greps for `#topic/bio` or searches text content to summarize findings.
-
-## Directory Layout (Recommended)
-
-```
-pkb/
-├── docs/
-│   ├── sources/        # External knowledge (articles, books)
-│   ├── projects/       # Active work
-│   └── health/         # Example domain for structured logs
-│       ├── nutrition-log.md    # Index with links to monthly CSVs
-│       └── nutrition-log/      # Monthly CSV files
-│           ├── 2026-02.csv
-│           └── 2026-03.csv
-├── mocs/               # Maps of Content (indexes)
-├── scripts/            # Automation scripts
-├── _fit/               # Fit plugin sync state (gitignored)
-├── .gitignore          # Excludes Fit PAT, sync artifacts, OS files
-└── README.md
+```bash
+python3 -m pip install PyYAML
 ```
 
-## Presentation
+Without PyYAML or the helper modules, basic frontmatter, configured CSV schemas, and link checks still run. The validator prints which optional checks are unavailable; the authority/provenance CLI tools require those dependencies. See [validation](docs/validation.md).
 
-Check out the [OpenClaw Event Presentation](presentation/slides.md) for a conceptual overview of the AI-Native PKB.
+Opt in to the local pre-commit gate:
+
+```bash
+python3 scripts/install-hooks.py
+```
+
+The installer refuses to bypass any existing default hook file or symlink (apart from `.sample` files), or replace a different `core.hooksPath`. Hooks are local Git configuration, not enabled merely by cloning. Existing users should follow the [upgrade guide](docs/upgrade-v0.6.0.md).
+
+## Connect an agent
+
+Point your agent's workspace instructions at this vault's [SKILL.md](SKILL.md), using the actual vault path. The root skill routes to bundled guides. If your agent requires skills in a separate directory, retain access to the complete bundle and explicitly configure the vault root; don't copy just SKILL.md and lose its linked resources. Nothing in the scripts requires an OpenClaw service.
+
+Examples:
+
+- “Save this article to my PKB.” Deduplicate, create a source note, and connect it to a MOC.
+- “Journal this under yesterday's date.” Preserve the prose in the human journal; do not silently activate unrelated trackers.
+- “Log this completed activity.” Use an existing authorized domain schema, or agree on a small schema first.
+- “Rename this note.” Preview the refactor, check path-style links separately, then audit the staged graph.
+- “Keep this change local.” Do not fetch, pull, push, or upload.
+
+## What's included
+
+```text
+SKILL.md                    Agent entry point and workflow router
+ontology.md                 Note, tag, and record conventions
+docs/                       Bundled workflow and design guides
+scripts/                    Validator, refactor, authority and provenance tools
+.githooks/pre-commit         Optional staged-snapshot gate
+.agent/index/               Canonical vocabulary and generated indexes
+tests/                      Regression tests using temporary local repositories
+```
+
+Your content can use `docs/sources/`, `docs/<domain>/<log-name>/YYYY-MM.csv`, `mocs/`, and `journal/YYYY-MM-DD.md`. These are conventions, not pre-populated personal datasets. Schemas are opt-in through `.agent/pkb-rules.json`; none are hardcoded for a person's health or other domains.
+
+Read [operational workflows](docs/operational-workflows.md), [Git and sync](docs/git-workflow.md), and [validation](docs/validation.md) for the procedures. [Canonical authority](docs/canonical-authority-indexing.md) answers which note governs a decision; [provenance](docs/document-level-provenance-edges.md) records the evidence behind it.
+
+## Optional viewing and storage
+
+Open the vault in [Obsidian](https://obsidian.md). CSV Lite can render structured logs. No plugin is required to write or analyze CSV with ordinary tools.
+
+For multi-device sync, choose a Git client or Obsidian plugin such as Fit. Use a private repository and the least repository access the client supports. Keep credentials out of Git. Fit's `.obsidian/plugins/fit/data.json` and `_fit/` mirror are ignored by this starter; also exclude `_fit/` from Obsidian search/graph. Ignore rules do not untrack a file already committed. Coordinate concurrent editors using the [sync workflow](docs/git-workflow.md).
+
+Original PDFs, scans, and other binary evidence may be kept in an authorized private external store or a durable local location. Record a stable non-secret reference and the actual verification state; see [source storage](docs/operational-workflows.md#preserve-originals-when-needed). No cloud account, public sharing, or upload automation is installed.
+
+## Development and release notes
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The full test suite uses PyYAML. See [changelog](CHANGELOG.md), [v0.6.0 drift audit](docs/drift-audit-v0.6.0.md), and [upgrade guide](docs/upgrade-v0.6.0.md). The [event presentation](presentation/slides.md) is background material, not the operational specification.

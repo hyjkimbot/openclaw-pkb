@@ -19,7 +19,7 @@ Search returns relevance; this layer returns the dependency edges behind a synth
 A lightweight provenance layer over the PKB:
 
 1. Put dependency edges in YAML frontmatter, not prose.
-2. v1 is **opt-in** via `citation_status` — never coercive. The validator surfaces issues on notes that already opted in; it does not pressure the long tail of pre-existing docs into a metadata migration.
+2. v1 is **opt-in** through provenance fields — never coercive. Use `citation_status` to describe completeness; nonempty `source_notes` or `raw_sources` are also recognized without it. The validator surfaces issues on notes that already opted in; it does not pressure the long tail of pre-existing docs into a metadata migration.
 3. An audit reports likely synthesis candidates (by path / tag / kind) as recommendations, not failures.
 4. Schema is intentionally separate from canonical authority. Authority owns lifecycle and node properties; provenance owns dependency edges.
 
@@ -97,14 +97,14 @@ python3 scripts/pkb_provenance.py uncited-sources
 python3 scripts/pkb_provenance.py raw-only
 ```
 
-The audit writes `.agent/index/provenance.json` only when no errors are found — fix structural issues and re-run.
+The CLI audit reads the working tree and writes `.agent/index/provenance.json` only when no errors are found. Fix structural issues and re-run; inspect the generated output before staging it. The pre-commit validator below reads indexed content instead.
 
 ## Validator behavior
 
-The pre-commit validator (when `pkb_provenance.py` is present) reads each staged markdown file's provenance fields and surfaces:
+The pre-commit validator (when the helper modules and PyYAML are available) reads each changed Markdown blob from the Git index and surfaces:
 
 - structural errors (e.g. `citation_status` is a list instead of a string)
-- dangling targets (a `source_notes` entry pointing at a file that doesn't exist)
+- dangling targets (a `source_notes` entry pointing at a path absent from the Git index)
 
 Both are **warnings only**. The validator does not fail commits on provenance metadata. v1 is deliberately permissive so the system can be adopted gradually without forcing a metadata migration.
 

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Optional local gate; install with python3 scripts/install-hooks.py.
+set -eu
+pkb_root=$(git rev-parse --show-toplevel)
+exec python3 "$pkb_root/scripts/pkb-validate.py"

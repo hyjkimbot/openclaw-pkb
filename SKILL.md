@@ -1,238 +1,34 @@
 ---
 name: pkb
-version: 0.5.0
-description: Personal Knowledge Base management skill. Use for ingesting documents, creating source notes, structured logging, canonical authority resolution, document-level provenance edges, and managing a Git-backed Obsidian vault.
+version: 0.6.0
+description: "Manage a local Git-backed PKB: ingest sources, capture journals and structured records, resolve canonical authority, preserve provenance, and validate staged changes. Remote sync and domain tracking are opt-in."
 ---
 
-# PKB Ingest Workflow
+# PKB workflow router
 
-Follow these steps for any document ingestion task.
+Resolve the user's vault root first; run commands there. A vault need not be at `./pkb`. Read the relevant bundled guide before editing. Keep this file with its `docs/` and `scripts/` resources; a standalone copied SKILL.md is not the complete skill.
 
-# PKB Skill Definition
+## Route the task
 
-This skill manages a local Obsidian vault backed by Git. It prioritizes data integrity (Git) and structure (Zettelkasten).
+| Task | Read |
+| --- | --- |
+| Ingest a source, journal, log records, or move notes | [Operational workflows](docs/operational-workflows.md) |
+| Stage, commit, sync, recover a dirty checkout | [Git and sync](docs/git-workflow.md) |
+| Configure schemas, install hooks, audit links | [Validation](docs/validation.md) |
+| Resolve the current authority for a decision | [Canonical authority](docs/canonical-authority-indexing.md) |
+| Record a synthesis's source dependencies | [Provenance](docs/document-level-provenance-edges.md) |
+| Choose metadata and tags | [Ontology](ontology.md) |
+| Adopt this version in an existing vault | [Upgrade guide](docs/upgrade-v0.6.0.md) |
 
-## Supported Workflows
+For a configured domain, read that domain's own workflow before using its schemas or targets. This starter does not install domain trackers, schedules, or personal policies. Add domain routes only when needed.
 
-### 1. Ingestion (`pkb:ingest`)
-**Goal:** Capture external knowledge without clutter.
-- **Input:** URL or text block.
-- **Process:**
-  1.  **Deduplicate:** Check `docs/sources/` for existing notes.
-  2.  **Fetch:** Get readable content (if URL).
-  3.  **Create:** Write `docs/sources/[slug].md`.
-      - **Frontmatter:** `id`, `created`, `source`, `tags` (must include `type/source`).
-  4.  **Connect:** Add a link to this note in at least one `mocs/` file (e.g., `mocs/inbox.md` or `mocs/topic-name.md`).
+## Shared rules
 
-### 2. Daily Logging (`pkb:log`)
-**Goal:** Frictionless capture of thoughts/events.
-- **Input:** "Log [text]" or "Note [text]".
-- **Process:**
-  1.  Determine today's note: `journal/YYYY-MM-DD.md`.
-  2.  Append timestamped entry: `\n- [HH:MM] {text}`.
-  3.  (Optional) If specific topic detected (e.g. workout), update domain-specific logs (e.g. `docs/exercise/current-loads.json`).
+- Preserve the user's current consent, tracking pauses, display preferences, and targets as separate policy gates. A target document or historical log does not authorize new tracking. Hidden metrics are not automatically permitted to be stored. Explicit local-only and read-only requests override usual sync habits.
+- Put human raw journal prose in `journal/` (or the user's configured PKB journal path); put structured observations in the applicable CSV; keep agent continuity and operating notes outside the vault. Don't copy a whole agent memory archive into the human journal.
+- Record what was actually reported, keeping plans, requests, estimates, and completed events distinct. Use the event date and timezone, not automatically the message date. Never invent completion, verification, or review status.
+- Inspect the branch, index, and working tree before editing. Preserve unrelated work, stage only intended paths, and use the installed pre-commit gate. If no hook is installed, run `python3 scripts/pkb-validate.py` after staging. After structural work, use `python3 scripts/pkb-validate.py --full`.
+- Remote sync, uploads, and deletion of inbox originals require applicable authorization. A configured remote or storage provider is not authorization. Finish local-only work locally and say what remains unsynced.
+- Verify the saved content before confirming success. Distinguish edited, committed, pushed, and externally stored states; report partial failures without repeating successful writes.
 
-### 3. Maintenance (`pkb:refactor`)
-**Goal:** Rename or move notes without breaking the graph.
-- **Input:** "Rename [old] to [new]" or "Move [note] to [folder]".
-- **Process:**
-  1.  **Do NOT use `mv`.**
-  2.  Run `python3 scripts/refactor.py [old_path] [new_path]`.
-  3.  This script updates all `[[Wikilinks]]` pointing to the old note.
-
-### 4. Integrity Check (`pkb:validate`)
-**Goal:** Ensure the vault adheres to `ontology.md`.
-- **Process:**
-  1.  Run `python3 scripts/pkb-validate.py`.
-  2.  Fix any errors (missing tags, bad frontmatter) before committing.
-
-### 5. Canonical Authority Resolution (`pkb:lookup`)
-**Goal:** Resolve "which document is authoritative for decision X?" without grep.
-
-For operational tasks ("before logging food, read the canonical diet target"), prefer the canonical index over filesystem search. Authority resolution and relevance search are different operations.
-
-```bash
-# Look up the canonical file for a key
-python3 scripts/pkb_authority.py lookup nutrition-targets
-# → docs/health/current-targets.md
-
-# Full rebuild of the index from frontmatter (run after merges or bulk edits)
-python3 scripts/pkb_authority.py audit
-```
-
-**Adding a new canonical key:**
-1. Edit `.agent/index/canonical-keys.md` and register the key under `## Active keys`.
-2. Add `canonical_for: <key>` to the frontmatter of the canonical doc.
-3. Commit both changes together. The validator regenerates `.agent/index/canonical.json` and stages it automatically.
-
-**Frontmatter authority fields:**
-```yaml
-status: current | draft | reviewed | stable | historical | superseded | deprecated | planning
-canonical_for:
-  - decision-key
-supersedes:
-  - docs/path/old.md
-superseded_by:
-  - docs/path/newer.md
-authority_scope: optional/free-text  # only when path is insufficient
-owner: alice
-updated: YYYY-MM-DD
-```
-
-The validator (`pkb-validate.py`) integrates authority checks automatically when `pkb_authority.py` is present. It runs a full frontmatter rebuild on every commit that touches markdown or `canonical.json`, treating that rebuild as ground truth:
-- `canonical.json` is generated; do not hand-edit. The validator rejects staged blobs that don't match a fresh rebuild.
-- `canonical_for` keys must be unique (collision = build error) and registered in `canonical-keys.md`.
-- Status field is type-validated; unknown values produce non-fatal warnings during audit.
-
-See `docs/canonical-authority-indexing.md` for the full design.
-
-### 6. Document-Level Provenance (`pkb:provenance`)
-**Goal:** Record what evidence produced a synthesized note so future agents don't have to rediscover the dependency chain.
-
-Provenance and canonical authority are different operations on different axes:
-- **Authority** answers *"which doc should I obey?"* — owned by `pkb_authority`, fields: `status`, `canonical_for`, `supersedes`, `superseded_by`.
-- **Provenance** answers *"what evidence produced this?"* — owned by `pkb_provenance`, fields: `source_notes`, `raw_sources`, `citation_status`.
-
-**v1 is opt-in.** Don't migrate the long tail of pre-existing notes. Add provenance frontmatter to a synthesis-typed note when you want the dependency edges captured; the validator surfaces issues on those notes only and never blocks a commit on missing provenance.
-
-**Frontmatter fields:**
-
-```yaml
-source_notes:
-  - docs/sources/foo.md
-  - docs/sources/bar.md
-raw_sources:
-  - docs/sources/raw/foo.txt
-citation_status: cited # cited | raw-only | needs-review | self-authored
-```
-
-**CLI:**
-
-```bash
-# Full vault scan + write the provenance index
-python3 scripts/pkb_provenance.py audit
-
-# Suggest notes that look like syntheses but lack provenance metadata
-python3 scripts/pkb_provenance.py candidates
-
-# List source notes that no synthesis cites downstream
-python3 scripts/pkb_provenance.py uncited-sources
-
-# List notes with raw_sources but no processed source_notes
-python3 scripts/pkb_provenance.py raw-only
-```
-
-**Validator behavior:** when `pkb_provenance.py` is importable, the validator reads each staged markdown file with provenance fields and warns on dangling `source_notes` / `raw_sources` targets. Warnings only — never blocking, never coercing.
-
-See `docs/document-level-provenance-edges.md` for the full design.
-
-## External Services (Optional)
-
-The PKB works fully offline with just local Git. External services enhance durability and collaboration but are never required.
-
-- **Git remote (GitHub, etc.):** Recommended for backup and multi-device sync. If not configured, skip `git push`/`git pull` — local commits still provide version history.
-- **External file storage (Google Drive, S3, etc.):** Recommended for preserving original binary sources (PDFs, scans, images) that are too large or lossy to store as raw text in Git. If not configured, the raw text transcription in `docs/sources/raw/` is the only source copy.
-
-### Durable Source Storage (Optional)
-
-Documents requiring later verification (lab reports, legal/tax docs, scanned receipts) should preserve the original file outside Git. Text transcriptions (OCR, copy-paste) are lossy and error-prone — the original binary is the only reliable audit trail.
-
-If external storage is configured:
-1. **Upload original** to a `pkb/` folder in your storage provider (e.g., Google Drive `pkb/Health/Lab Reports/`). Keep files **private/restricted**.
-2. **Add provenance frontmatter** to the source note:
-   ```yaml
-   source_ref: drive:<fileId>    # or s3:<key>, local:<path>, etc.
-   extraction_method: pdf-direct  # or ocr, manual, llm
-   verification: verified         # or pending, disputed
-   ```
-   - `source_ref` uses a stable identifier (Drive file ID, S3 key), not a URL that may change.
-   - `verification` tracks whether extracted data has been confirmed against the original.
-
-**Token cost rule:** Read the original document once during ingestion to extract structured data (CSV rows, markdown summary). For all subsequent queries, use the extracted data only. Re-read the original only if a value is disputed.
-
-## Git Operations
-- **Always Pull First:** `git -C pkb pull` (skip if no remote configured)
-- **Always Push After:** `git -C pkb commit ... && git -C pkb push` (skip push if no remote)
-- **Commit Messages:** Use conventional commits (`feat:`, `chore:`, `docs:`).
-
-## 1. Preparation
-- **Pull Latest**: Always run `git -C pkb pull` before starting.
-- **Fit Plugin Sync Recovery**: If you use the Obsidian **Fit** plugin (or similar git-sync plugins) to push from mobile, your local branch can fall behind `origin/main` while file sync (iCloud, Syncthing, etc.) keeps the working directory up-to-date. This causes `git pull` to fail with "dirty working tree" errors even though the files already match the remote. When this happens:
-  1. Run `git fetch origin`.
-  2. Run `git diff origin/main -- <modified files>` to check if local files already match the remote.
-  3. If they match (no diff output), run `git reset origin/main` to fast-forward the local branch pointer without touching files.
-  4. If there are real local differences, use `git stash && git pull && git stash pop` instead and resolve any conflicts.
-- **Deduplication**: Check `docs/sources/` for existing notes with similar titles.
-
-## 2. Ingesting
-- **Raw Text**: Save the full content to `docs/sources/raw/[slugified-title].txt` (optional).
-- **Source Note**: Create `docs/sources/[slugified-title].md`.
-  - **Frontmatter**: Must include `id`, `created`, `source`, and `tags`.
-  - **Tags**: Must include at least one ontology prefix (`type/`, `status/`, `project/`, `person/`).
-  - **Content**: Include Executive Summary, Summary, Key Points, Claims/Hypotheses, and a link to the raw source.
-- **MOC Updates**: Add the new note to relevant Maps of Content in `mocs/`.
-
-## 3. Cleanup
-- **Local Files**: Delete any temporary export files (e.g., in `/tmp/`).
-
-## 4. Finalize
-- **Validate**: Run `python3 scripts/pkb-validate.py` (ensure changes are staged first).
-- **Push**: `git -C pkb add .`, `git -C pkb commit -m "Ingest: [Title]"`, and `git -C pkb push`.
-
-## 5. Maintenance
-- **Refactor**: Use `scripts/refactor.py old.md new.md` to safely move files and update wikilinks.
-
-## 6. Structured Logging (CSV)
-
-### General Principles
-- Time-series data (nutrition, mood, symptoms, workouts, finances, etc.) should be stored as CSV, not markdown tables.
-- CSV files are the single source of truth — do not maintain parallel markdown copies.
-- Obsidian renders CSVs via the **CSV Lite** community plugin.
-- When plotting or analyzing log data, read CSVs directly with code (e.g., `pd.read_csv()` / `glob` + `concat`). Do NOT use LLM calls to extract data from logs.
-- Every CSV file must include a header row matching its schema exactly.
-
-### File Structure
-Logs are stored as monthly CSV files in per-topic directories to keep files small and in-place edits cheap:
-
-```
-docs/<domain>/<log-name>/YYYY-MM.csv
-```
-
-Example:
-```
-docs/health/nutrition-log/2026-03.csv
-docs/health/daily-checkin/2026-03.csv
-docs/finance/expenses/2026-03.csv
-```
-
-Each log directory should have an index file (`docs/<domain>/<log-name>.md`) with wikilinks to each monthly CSV for Obsidian navigation.
-
-### Workflow
-
-1. **Pull first**: `git pull` before any edits.
-2. **Determine the file**: Use the entry's date to pick the correct monthly file. If the file doesn't exist yet (new month), create it with the header row first, then add a wikilink to the corresponding index `.md` file.
-3. **Append**: Add new rows to the end of the monthly CSV using shell append:
-   ```
-   echo 'col1,col2,...' >> docs/health/nutrition-log/2026-03.csv
-   ```
-   Do NOT sort or reorder existing rows.
-4. **In-place update**: When correcting a previously logged entry, edit the existing row in place rather than appending a duplicate. Match on date + identifying columns to find the row.
-5. **Commit & Push**: Stage the changed CSV, commit with a descriptive message, and push.
-
-### Defining a Log Schema
-Each log needs a documented schema. Example:
-
-```
-# Nutrition Log
-Columns: date,meal,intake,cal_lo,cal_hi,pro_lo,pro_hi,status,notes
-- date: YYYY-MM-DD
-- cal_lo, cal_hi: integer calorie bounds (same value if single estimate)
-- status: one of confirmed, tentative, updated
-```
-
-Register schemas in `scripts/pkb-validate.py` to enforce column headers, types, and enums on commit.
-
-### Rules
-- No units in numeric columns (no `kcal`, no `g`, no `$`).
-- Wrap values in double quotes if they contain commas.
-- Do NOT add computed summary rows (e.g., "Day Total"). Totals are derived from the data.
+Commands such as `pkb:ingest` or `pkb:log` are conversational labels, not installed executables. The shipped CLI commands are in the guides above.

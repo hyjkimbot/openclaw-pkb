@@ -1,113 +1,49 @@
-# PKB Ontology & Standards
+# PKB ontology and standards
 
-> "A system is only as good as its constraints."
+Use a small vocabulary that helps retrieve and interpret notes. Source notes preserve what a source said; synthesis notes make the author's reasoning explicit. Connect useful notes through MOCs and links without forcing every journal entry into a curated-note schema.
 
-## Philosophy
-This PKB is built on **Zettelkasten** principles, adapted for modern AI-assisted workflows.
-1.  **Atomicity**: One concept, one note.
-2.  **Connectivity**: Links > Folders. Structure emerges from connections (MOCs), not hierarchy.
-3.  **Source vs. Synthesis**: strictly separate *what others said* (Source Notes) from *what I think* (Synthesis/Permanent Notes).
+## Storage boundaries
 
-## Folder Structure
+- `docs/sources/`: source notes and optional raw transcriptions; keep quotations distinct from commentary and corrections.
+- `docs/projects/` and other optional domains: curated notes, decisions, and domain workflows.
+- `mocs/`: maps of content; use `type/moc` for new curated indexes.
+- `journal/`: human raw chronology and reflections, usually date-named.
+- `docs/<domain>/<log-name>/YYYY-MM.csv`: structured observations for analysis. Schemas live in `.agent/pkb-rules.json`.
+- Agent continuity: outside the human vault, in the agent's own workspace.
 
-| Path | Purpose | Rules |
-| :--- | :--- | :--- |
-| `docs/sources/` | External knowledge (Articles, Books, PDF transcripts). | **Immutable.** Do not edit the author's words. Add your thoughts in a separate section or note. |
-| `docs/projects/` | Active efforts with a goal and a deadline. | Must have `status/` tags. Move to `archive/` when done. |
-| `docs/entities/` | People, Organizations, Locations. | Use `type/person`, `type/org`. |
-| `mocs/` | **Maps of Content**. The entry points. | These are the "index" pages that link to other notes. |
-| `journal/` | Daily logs, meetings, chronological scratchpad. | Date-based filename (`YYYY-MM-DD`). |
+Current plans or compiled state can be compact Markdown notes. They are not substitutes for completed history. A journal narrative and a CSV row may describe the same day for different purposes; do not maintain parallel Markdown tables as a second numeric source of truth.
 
-## Tag Ontology
-We use **Hierarchical Tags** (nested with `/`) to enforce structure.
+## Separate the metadata axes
 
-### 1. Types (`type/*`)
-*What is this object?*
-- `#type/source` - An external resource (article, video, book).
-- `#type/person` - A human being.
-- `#type/project` - A finite effort.
-- `#type/area` - An ongoing responsibility (e.g., Health, Finance).
-- `#type/concept` - An abstract idea or definition.
+**Document kind (`type/*`)** describes what a note is: `type/source`, `type/moc`, `type/reference`, `type/decision`, or another locally defined kind. For new or substantively revised curated notes, choose a supported kind rather than stuffing all meaning into one tag.
 
-### 2. Status (`status/*`)
-*What is the lifecycle state?*
-- `#status/idea` - A shower thought; unrefined.
-- `#status/active` - Currently in progress.
-- `#status/blocked` - Waiting on something.
-- `#status/done` - Completed.
-- `#status/archive` - Frozen/deprecated.
+**Topic and entity labels** describe what it concerns: `topic/<subject>`, `project/<name>`, `person/<name>`, or another local convention. Being about a project or a person does not imply that the document itself is a project plan or a biography.
 
-### 3. Topics (`topic/*`)
-*What is this about? (The domain)*
-- `#topic/ai`
-- `#topic/bio`
-- `#topic/health`
-- `#topic/finance`
-- *(Add domains as needed, but keep them broad)*
+**Lifecycle (`status`)** describes an evidenced state. Authority uses the structured `status:` field; a `status/*` tag may help human search but must not contradict it. Do not add `reviewed`, `tested`, `verified`, or `completed` just to fill a field. Missing evidence is a reason to leave the claim out or mark it pending, not invent it.
 
-## Frontmatter Schema
-Every note **must** have this YAML header:
+Existing vocabularies can coexist. Review unknown legacy labels as advisory hygiene findings; this release does not ship a taxonomy auditor or require a bulk migration. The basic validator retains its compatibility check for an ontology prefix in inline tag lists; it does not enforce every recommendation here.
+
+## Frontmatter scope
+
+Curated Markdown notes need `id`, `created`, and `tags`. Source notes should also supply `source`; `updated` is useful when a substantive revision occurs. Example:
 
 ```yaml
 ---
-id: [Unique ID or UUID]
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-tags: [type/source, topic/ai]
-source: [URL or Citation]
+id: source-example
+created: 2026-01-01
+tags: [type/source, topic/example]
+source: "Original source citation"
 ---
 ```
 
-## Authority vs. Relevance
+The validator exempts plain `journal/` entries, `.agent/` control files, README.md, SKILL.md, ontology.md, CHANGELOG.md, and top-level design/guide files directly under `docs/`. Other staged Markdown, including curated notes in `docs/<subdirectory>/` and `mocs/`, retains the frontmatter gate. Configure additional narrow journal exemptions only when needed; see [validation](docs/validation.md).
 
-A note can be **relevant** to a topic (it discusses nutrition) without being **authoritative** on it (it is the current operating target). Search returns relevance; canonical authority returns the source of truth.
+## Authority and provenance
 
-Mark a note as canonical with frontmatter:
+Search relevance answers which notes discuss a subject. **Canonical authority** answers which note currently governs a decision. Register a key under `## Active keys` in `.agent/index/canonical-keys.md`, then claim it with `canonical_for` in the intended document. The generated lookup is `.agent/index/canonical.json`; do not hand-edit it. See [canonical authority](docs/canonical-authority-indexing.md).
 
-```yaml
-status: current
-canonical_for:
-  - nutrition-targets
-```
+**Provenance** answers what evidence informed a note. Opt in with `citation_status` and use `source_notes` / `raw_sources` for in-vault dependency paths. This is independent of canonical authority and lifecycle. An external `source_ref` may identify the durable original, but does not imply that extracted data has been verified. See [provenance](docs/document-level-provenance-edges.md).
 
-When older versions of a decision exist, link them explicitly:
+## Editing contract
 
-```yaml
-status: superseded
-superseded_by:
-  - docs/health/current-targets.md
-```
-
-The active key vocabulary lives at `.agent/index/canonical-keys.md`; the generated lookup map lives at `.agent/index/canonical.json`. Use `python3 scripts/pkb_authority.py lookup <key>` to resolve a decision to its current file. See `docs/canonical-authority-indexing.md` and `SKILL.md` workflow #5 for details.
-
-## Provenance vs. Authority
-
-A note can be **derived from** other notes (provenance) without being **authoritative for** any decision (authority). Provenance answers "what evidence produced this doc?" — distinct from "which doc should I obey?"
-
-Add document-level provenance to syntheses with frontmatter:
-
-```yaml
-source_notes:
-  - docs/sources/foo.md
-raw_sources:
-  - docs/sources/raw/foo.txt
-citation_status: cited
-```
-
-The schema is intentionally separate from authority: `canonical_for` and `supersedes` belong to authority (claims a note makes about itself); `source_notes` and `raw_sources` belong to provenance (relationships between this note and others). Use `python3 scripts/pkb_provenance.py audit` to scan and `python3 scripts/pkb_provenance.py candidates` to recommend likely synthesis candidates. See `docs/document-level-provenance-edges.md` and `SKILL.md` workflow #6 for details.
-
-## Structured Logs vs. Notes
-Not everything belongs in a markdown note. **Time-series data** (meals, mood, workouts, expenses) should be stored as CSV files, not markdown tables:
-
-- CSV files live in `docs/<domain>/<log-name>/YYYY-MM.csv` (monthly partitions).
-- Each log directory has an index `.md` file with wikilinks to monthly CSVs.
-- Schemas are documented in `SKILL.md` and enforced by `pkb-validate.py`.
-- Use the **CSV Lite** Obsidian plugin to view CSVs in the vault.
-
-**Why not markdown tables?** They require LLM-based text parsing to plot or analyze, which is expensive and error-prone. CSV is directly readable by code.
-
-## The "AI Contract"
-**Agents must follow these rules when editing:**
-1.  **Never break links.** Use `refactor.py` to move/rename.
-2.  **Always tag.** A note without tags is lost.
-3.  **Link responsibly.** Do not create "orphan" notes. Connect a new note to at least one MOC or existing concept immediately.
+Read the relevant domain policy, preserve uncertainty, and use the actual event date. Link new curated notes to an appropriate MOC or existing concept. Preview renames and inspect references the helper does not rewrite. Stage intended files and use the [Git workflow](docs/git-workflow.md) and [validation gate](docs/validation.md); do not imply that editorial guidance is enforced by code when it is not.

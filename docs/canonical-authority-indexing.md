@@ -15,7 +15,7 @@ A lightweight authority layer over the PKB:
 
 1. Put authority claims in YAML frontmatter, not prose.
 2. Maintain a small generated canonical-key index for fast runtime lookup.
-3. Validate every commit against a fresh frontmatter rebuild treated as ground truth.
+3. Validate Markdown/index commits against a fresh staged-frontmatter rebuild treated as ground truth.
 4. Reject hand-edits to the generated index by comparing the staged blob to that rebuild.
 
 This turns the PKB graph from "many related notes" into a more explicit model of **current state, historical context, open questions, and superseded decisions**.
@@ -63,14 +63,14 @@ Example contents:
 }
 ```
 
-Active canonical keys live in `.agent/index/canonical-keys.md` as a controlled vocabulary. Adding a new canonical claim requires registering the key there first — the validator rejects claims for unregistered keys.
+When `.agent/index/canonical-keys.md` is present in the index (as shipped), it defines the controlled vocabulary of active canonical keys. Adding a new canonical claim requires registering the key there first — the validator rejects claims for unregistered keys.
 
 ## Validator behavior
 
-The validator runs a full frontmatter rebuild and treats it as ground truth on every commit that touches markdown or `canonical.json`:
+With PyYAML and the helper modules available, the validator runs a full indexed-frontmatter rebuild and treats it as ground truth on every commit that touches markdown or `canonical.json`. It reads the active key vocabulary from the index as well:
 
 - **If `canonical.json` is staged**: the staged blob (read via `git show :<path>`, not the working tree) must match the rebuild. Catches injection, deletion, and modification regardless of what else is staged.
-- **If only markdown is staged**: the index is regenerated and re-staged.
+- **If only markdown is staged**: the index is regenerated and re-staged when needed. Conflicting unstaged changes to the generated file are preserved and block regeneration.
 - **Collision**: two docs claiming the same key produces a structured error naming both files.
 - **Vocabulary**: claims for keys not in `.agent/index/canonical-keys.md` are rejected with a hint to register the key first.
 - **Status validation**: type validation only (must be a string); unknown values surface as non-fatal warnings during audit.
@@ -85,6 +85,8 @@ python3 scripts/pkb_authority.py lookup nutrition-targets
 # Full rebuild from frontmatter (run after merges, bulk edits, or recovery)
 python3 scripts/pkb_authority.py audit
 ```
+
+The CLI audit reads the **working tree**, unlike the staged validator. Inspect and stage its generated output with the intended source changes.
 
 **When to run a full audit:** after `git pull` of a non-trivial merge, after a bulk-edit pass, or whenever the validator reports drift. The pre-commit validation handles normal day-to-day commits but cannot detect changes the validator didn't write itself.
 

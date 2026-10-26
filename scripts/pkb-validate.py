@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import collections
 import csv
 import io
@@ -17,37 +18,39 @@ RULES_PATH = os.path.join(BASE, '.agent', 'pkb-rules.json')
 CANONICAL_INDEX_PATH = os.path.join(BASE, '.agent', 'index', 'canonical.json')
 CANONICAL_VOCAB_PATH = os.path.join(BASE, '.agent', 'index', 'canonical-keys.md')
 
+parser = argparse.ArgumentParser(description='Validate the staged PKB snapshot.')
+parser.add_argument('--full', action='store_true',
+                    help='audit all graph-scope Markdown links even with no staged Markdown')
+args = parser.parse_args()
+
 # Authority indexing is optional — only loads if the module is present.
 sys.path.insert(0, os.path.dirname(__file__))
 try:
     from pkb_authority import (  # noqa: E402
         AuthorityError,
         CanonicalIndex,
-        build_full_index,
         build_index_from_markdown_texts,
-        load_active_keys,
-        load_index,
         parse_active_keys,
         validate_against_vocabulary,
         write_index,
     )
     AUTHORITY_AVAILABLE = True
-except ImportError:
+except ImportError as exc:
     AUTHORITY_AVAILABLE = False
+    print(f'PKB validate: authority checks unavailable ({exc})')
 
-# Provenance indexing is also optional. v1 is opt-in via citation_status,
+# Provenance indexing is also optional. v1 is opt-in via provenance fields,
 # never coercive — the validator surfaces issues as warnings only and
 # never blocks commits on provenance metadata.
 try:
     from pkb_provenance import (  # noqa: E402
         ProvenanceError,
-        build_full_index as build_provenance_index,
-        collect_dangling_targets,
         extract_provenance,
     )
     PROVENANCE_AVAILABLE = True
-except ImportError:
+except ImportError as exc:
     PROVENANCE_AVAILABLE = False
+    print(f'PKB validate: provenance warnings unavailable ({exc})')
 
 frontmatter_re = re.compile(r'^---\n(.*?)\n---\n', re.S)
 required_fm = {'id', 'created', 'tags'}
@@ -71,7 +74,10 @@ def _git_show_index_text(rel_path):
     """Return a file's git-index text, or None when absent from the index."""
     try:
         blob = _git_output(['git', 'show', f':{rel_path}'], binary=True)
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as exc:
+        if rel_path in index_file_set:
+            print(f'PKB validate: cannot read indexed blob {rel_path}: {exc}')
+            sys.exit(1)
         return None
     return blob.decode('utf-8')
 
@@ -80,15 +86,15 @@ def _git_show_index_text(rel_path):
 try:
     # Check if we are inside a git repo
     if not os.path.exists(os.path.join(BASE, '.git')):
-        print("PKB validate: Not a git repository. Skipping checks.")
-        sys.exit(0)
+        print("PKB validate: not a git repository")
+        sys.exit(1)
 
-    files = _git_zlist(['git', 'diff', '--cached', '--name-only', '-z'])
+    # Disable rename folding so the deleted old path can trigger a graph scan.
+    files = _git_zlist(['git', 'diff', '--cached', '--no-renames', '--name-only', '-z'])
     index_files = _git_zlist(['git', 'ls-files', '-z'])
 except Exception as e:
-    # If git fails, just warn and exit
-    print(f'PKB validate: warning - git check failed: {e}')
-    sys.exit(0)
+    print(f'PKB validate: git check failed: {e}')
+    sys.exit(1)
 
 index_file_set = set(index_files)
 
@@ -98,13 +104,33 @@ def index_text(rel_path):
 
 
 rules = {}
-if os.path.exists(RULES_PATH):
+rules_text = index_text(os.path.relpath(RULES_PATH, BASE))
+if rules_text is not None:
     try:
-        with open(RULES_PATH, 'r', encoding='utf-8') as fh:
-            rules = json.load(fh)
-    except (OSError, json.JSONDecodeError) as exc:
+        rules = json.loads(rules_text)
+        if not isinstance(rules, dict):
+            raise ValueError('expected a JSON object')
+    except ValueError as exc:
         print(f"PKB validate: cannot read {RULES_PATH}: {exc}")
         sys.exit(1)
+
+# Optional write-boundary policy; no path allowlist is imposed by default.
+allowed_roots = rules.get('allowedWriteRoots')
+
+
+def allowed_path(rel):
+    return allowed_roots is None or any(
+        rel.startswith(p) if p.endswith('/') else rel == p for p in allowed_roots)
+
+
+if allowed_roots is not None:
+    if not isinstance(allowed_roots, list) or not all(isinstance(p, str) and p for p in allowed_roots):
+        print('PKB validate: allowedWriteRoots must be a list of nonempty paths')
+        sys.exit(1)
+    for rel in files:
+        if not allowed_path(rel):
+            print(f'PKB validate: staged file outside allowed roots: {rel}')
+            sys.exit(1)
 
 # Frontmatter enforcement is scoped to vault note files. Control-plane
 # directories and repository meta files (README, SKILL, ontology, etc.)
@@ -116,6 +142,11 @@ FRONTMATTER_SKIP_FILES = {
     'ontology.md',
     'CHANGELOG.md',
 }
+extra_exemptions = rules.get('frontmatterExemptPrefixes', [])
+if not isinstance(extra_exemptions, list) or not all(isinstance(p, str) and p.endswith('/') for p in extra_exemptions):
+    print('PKB validate: frontmatterExemptPrefixes must be a list of directory paths ending in /')
+    sys.exit(1)
+FRONTMATTER_SKIP_PREFIXES += tuple(extra_exemptions)
 
 
 def _frontmatter_required(rel_path: str) -> bool:
@@ -238,8 +269,19 @@ for csv_path, schema in csv_files_to_validate:
         print(f"PKB validate: {csv_path} CSV parse error: {e}")
         sys.exit(1)
 
-# --- Markdown link validation for staged markdown files ---
-# Validate staged content against the git index file list, not the working tree.
+# --- Conditional whole-graph link validation ---
+# Validate the complete staged graph when one of its Markdown paths changes,
+# including deletions. CSV-only commits avoid this scan; --full forces it.
+GRAPH_MD_PREFIXES = ('docs/', 'mocs/', 'blocks/', 'journal/')
+GRAPH_MD_FILES = {'README.md'}
+
+
+def _is_graph_md(rel_path):
+    return rel_path.endswith('.md') and (
+        rel_path in GRAPH_MD_FILES or rel_path.startswith(GRAPH_MD_PREFIXES))
+
+
+graph_validation_required = args.full or any(_is_graph_md(f) for f in files)
 PATHLIKE_EXTS = ('.md', '.txt', '.csv', '.json', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.html')
 WIKILINK_RE = re.compile(r'\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]')
 MDLINK_RE = re.compile(r'\[[^\]]+\]\(([^)]+)\)')
@@ -288,7 +330,8 @@ for rel in all_files_rel:
 
 unresolved = []
 ambiguous = []
-for src_rel in [f for f in files if f.endswith('.md')]:
+graph_nodes = [f for f in index_files if _is_graph_md(f)] if graph_validation_required else []
+for src_rel in graph_nodes:
     txt = index_text(src_rel)
     if txt is None:
         continue
@@ -341,14 +384,9 @@ if ambiguous:
 # markdown as ground truth; staged canonical.json blob must match it.
 if AUTHORITY_AVAILABLE:
     def _build_staged_authority_index():
-        try:
-            raw = _git_output(['git', 'ls-files', '-z', '--', '*.md'])
-        except subprocess.CalledProcessError:
-            return build_full_index(BASE)
-
         markdown_texts = {}
         errors = []
-        for rel in [p for p in raw.split('\0') if p]:
+        for rel in [p for p in index_files if p.endswith('.md')]:
             text = index_text(rel)
             if text is None:
                 errors.append((rel, 'cannot read staged blob'))
@@ -363,7 +401,7 @@ if AUTHORITY_AVAILABLE:
     def _load_staged_active_keys(rel_path):
         text = index_text(rel_path)
         if text is None:
-            return load_active_keys(os.path.join(BASE, rel_path))
+            return None
         return parse_active_keys(text)
 
     def _load_staged_index(rel_path):
@@ -425,8 +463,20 @@ if AUTHORITY_AVAILABLE:
                 _print_diff('staged', staged_index.entries, 'staged rebuild', rebuilt.entries)
                 sys.exit(1)
         else:
-            on_disk = load_index(CANONICAL_INDEX_PATH)
-            if on_disk.entries != rebuilt.entries:
+            existing_index = _load_staged_index(rel_index)
+            if existing_index is None or existing_index.entries != rebuilt.entries:
+                # Do not overwrite unrelated working-tree edits while generating
+                # a new index from the staged Markdown snapshot.
+                if not allowed_path(rel_index):
+                    print(f'PKB validate: generated file outside allowed roots: {rel_index}')
+                    sys.exit(1)
+                working_text = None
+                if os.path.exists(CANONICAL_INDEX_PATH):
+                    with open(CANONICAL_INDEX_PATH, encoding='utf-8') as fh:
+                        working_text = fh.read()
+                if os.path.islink(CANONICAL_INDEX_PATH) or working_text != index_text(rel_index):
+                    print(f'PKB validate: preserve unstaged changes to {rel_index}; reconcile them before regeneration')
+                    sys.exit(1)
                 write_index(rebuilt, CANONICAL_INDEX_PATH)
                 try:
                     subprocess.check_call(['git', 'add', rel_index], cwd=BASE)
@@ -435,19 +485,14 @@ if AUTHORITY_AVAILABLE:
                     sys.exit(1)
 
 # --- Provenance metadata (warnings only, never blocking) ---
-# Per design, v1 is opt-in via citation_status. Stage commits never fail
+# Per design, v1 is opt-in via provenance fields. Staged commits never fail
 # based on provenance — we only surface issues on staged files that
 # already opted in, so users see structural problems they introduced.
 if PROVENANCE_AVAILABLE:
     md_changed_for_prov = [f for f in files if f.endswith('.md')]
     for rel in md_changed_for_prov:
-        full = os.path.join(BASE, rel)
-        if not os.path.exists(full):
-            continue
-        try:
-            with open(full, 'r', encoding='utf-8') as fh:
-                text = fh.read()
-        except OSError:
+        text = index_text(rel)
+        if text is None:
             continue
         try:
             rec = extract_provenance(rel, text)
@@ -461,12 +506,13 @@ if PROVENANCE_AVAILABLE:
             continue
         # Soft check: dangling source_notes / raw_sources
         for target in rec.source_notes + rec.raw_sources:
-            target_full = os.path.join(BASE, target)
-            if not os.path.exists(target_full):
+            if target not in index_file_set:
                 print(
                     f"PKB validate: provenance warning: {rel} references "
                     f"missing target {target}"
                 )
 
+if not graph_validation_required:
+    print('PKB validate: graph validation skipped (no graph-scope Markdown staged; use --full to force)')
 print('PKB validate: OK')
 sys.exit(0)
